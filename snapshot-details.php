@@ -170,32 +170,77 @@ if (!$snapshotId) {
             document.querySelector('.loading-spinner').style.display = 'flex';
 
             try {
-                const response = await fetch(`/mobile/mobileSlideApi.php?action=getSnapshots&limit=100`);
-                const data = await response.json();
-
-                if (!data.success) {
-                    throw new Error(data.message || 'Failed to load snapshot');
+                console.log('Loading snapshot details for ID:', snapshotId);
+                
+                let snapshot = null;
+                
+                // First, try to get snapshot data from sessionStorage
+                const cachedSnapshot = sessionStorage.getItem('currentSnapshot');
+                if (cachedSnapshot) {
+                    try {
+                        const parsedSnapshot = JSON.parse(cachedSnapshot);
+                        if (parsedSnapshot.snapshot_id === snapshotId || String(parsedSnapshot.snapshot_id) === String(snapshotId)) {
+                            console.log('Using cached snapshot data from sessionStorage');
+                            snapshot = parsedSnapshot;
+                            // Clear the cached data after using it
+                            sessionStorage.removeItem('currentSnapshot');
+                        }
+                    } catch (e) {
+                        console.warn('Failed to parse cached snapshot data:', e);
+                        sessionStorage.removeItem('currentSnapshot');
+                    }
                 }
-
-                // Find the specific snapshot
-                const snapshot = data.data.find(s => s.snapshot_id === snapshotId);
-
+                
+                // If not found in cache, fetch from API
                 if (!snapshot) {
-                    throw new Error('Snapshot not found');
+                    console.log('Fetching snapshot from API (limit 50)');
+                    const response = await fetch(`/mobile/mobileSlideApi.php?action=getSnapshots&limit=50`);
+                    
+                    if (!response.ok) {
+                        console.error('API response not OK:', response.status, response.statusText);
+                        throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+                    }
+                    
+                    const data = await response.json();
+                    console.log('API response:', data);
+
+                    if (!data.success) {
+                        console.error('API returned error:', data.message);
+                        throw new Error(data.message || 'Failed to load snapshot');
+                    }
+
+                    if (!data.data || !Array.isArray(data.data)) {
+                        console.error('Invalid data format:', data);
+                        throw new Error('Invalid data format received from API');
+                    }
+
+                    console.log('Looking for snapshot ID:', snapshotId, 'among', data.data.length, 'snapshots');
+                    
+                    // Find the specific snapshot - try both strict and loose comparison
+                    snapshot = data.data.find(s => s.snapshot_id === snapshotId);
+                    if (!snapshot) {
+                        // Try converting to string for comparison
+                        snapshot = data.data.find(s => String(s.snapshot_id) === String(snapshotId));
+                    }
+
+                    if (!snapshot) {
+                        console.error('Snapshot not found in recent 50 snapshots. Looking for:', snapshotId);
+                        throw new Error('Snapshot not found in recent snapshots. Please navigate from the snapshots list.');
+                    }
                 }
+                
+                console.log('Found snapshot:', snapshot);
 
-                // Fetch agent details for display name
-                const agentResponse = await fetch(`/mobile/mobileSlideApi.php?action=getAgent&id=${snapshot.agent_id}`);
-                const agentData = await agentResponse.json();
-                const agent = agentData.success ? agentData.data : null;
-                const agentName = agent ? (agent.display_name || agent.hostname) : 'Unknown Agent';
+                // Get agent name from snapshot data (already included in the API response)
+                const agentName = snapshot.agent_display_name || snapshot.agent_hostname || 'Unknown Agent';
 
-                const location = snapshot.locations && snapshot.locations.length > 0 ? snapshot.locations[0] : null;
+                const locations = snapshot.locations || [];
+                const location = locations.length > 0 ? locations[0] : null;
                 const deviceId = location ? location.device_id : null;
 
-                const backupDate = new Date(snapshot.backup_ended_at);
-                const startDate = new Date(snapshot.backup_started_at);
-                const duration = Math.floor((backupDate - startDate) / 1000 / 60);
+                const backupDate = snapshot.backup_ended_at ? new Date(snapshot.backup_ended_at) : null;
+                const startDate = snapshot.backup_started_at ? new Date(snapshot.backup_started_at) : null;
+                const duration = (backupDate && startDate) ? Math.floor((backupDate - startDate) / 1000 / 60) : null;
 
                 container.innerHTML = `
                     ${snapshot.verify_boot_screenshot_url ? `
@@ -216,20 +261,26 @@ if (!$snapshotId) {
                         <div class="card-value">${agentName}</div>
                     </div>
 
-                    <div class="info-card">
-                        <div class="card-label">Backup Completed</div>
-                        <div class="card-value">${backupDate.toLocaleString()}</div>
-                    </div>
+                    ${backupDate ? `
+                        <div class="info-card">
+                            <div class="card-label">Backup Completed</div>
+                            <div class="card-value">${backupDate.toLocaleString()}</div>
+                        </div>
+                    ` : ''}
 
-                    <div class="info-card">
-                        <div class="card-label">Backup Started</div>
-                        <div class="card-value">${startDate.toLocaleString()}</div>
-                    </div>
+                    ${startDate ? `
+                        <div class="info-card">
+                            <div class="card-label">Backup Started</div>
+                            <div class="card-value">${startDate.toLocaleString()}</div>
+                        </div>
+                    ` : ''}
 
-                    <div class="info-card">
-                        <div class="card-label">Duration</div>
-                        <div class="card-value">${duration} minutes</div>
-                    </div>
+                    ${duration !== null ? `
+                        <div class="info-card">
+                            <div class="card-label">Duration</div>
+                            <div class="card-value">${duration} minutes</div>
+                        </div>
+                    ` : ''}
 
                     ${snapshot.verify_fs_status ? `
                         <div class="info-card">
@@ -242,21 +293,23 @@ if (!$snapshotId) {
                         </div>
                     ` : ''}
 
-                    <div class="info-card">
-                        <div class="card-label">Locations</div>
-                        <div class="card-value">
-                            ${snapshot.locations.map(loc => `
-                                <span class="status-badge ${loc.type === 'local' ? 'info' : 'secondary'} me-1">
-                                    <i class="bi bi-${loc.type === 'local' ? 'hdd' : 'cloud'}"></i> ${loc.type}
-                                </span>
-                            `).join('')}
+                    ${locations.length > 0 ? `
+                        <div class="info-card">
+                            <div class="card-label">Locations</div>
+                            <div class="card-value">
+                                ${locations.map(loc => `
+                                    <span class="status-badge ${loc.type === 'local' ? 'info' : 'secondary'} me-1">
+                                        <i class="bi bi-${loc.type === 'local' ? 'hdd' : 'cloud'}"></i> ${loc.type}
+                                    </span>
+                                `).join('')}
+                            </div>
                         </div>
-                    </div>
+                    ` : ''}
 
                     <div class="restore-options">
                         <h5 class="mb-3" style="color: rgba(255, 255, 255, 0.85); font-weight: 600;">Start Restore</h5>
                         
-                        <button class="btn btn-primary restore-option-btn w-100" onclick="startRestore('file', '${snapshot.snapshot_id}', '${snapshot.agent_id}', ${deviceId ? `'${deviceId}'` : 'null'})">
+                        <button class="btn btn-outline-primary restore-option-btn w-100" onclick="startRestore('file', '${snapshot.snapshot_id}', '${snapshot.agent_id}', ${deviceId ? `'${deviceId}'` : 'null'})">
                             <div class="restore-option-icon">
                                 <i class="bi bi-file-earmark"></i>
                             </div>
@@ -292,7 +345,9 @@ if (!$snapshotId) {
                 console.error('Error loading snapshot details:', error);
                 container.innerHTML = `
                     <div class="alert alert-danger">
-                        Failed to load snapshot details. Please try again.
+                        <strong>Failed to load snapshot details</strong><br>
+                        ${error.message}<br>
+                        <small class="mt-2 d-block">Check the browser console for more details.</small>
                     </div>
                 `;
             } finally {

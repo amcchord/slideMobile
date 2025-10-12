@@ -266,6 +266,12 @@ if (!hasApiKey()) {
 
         // Show snapshot details
         function showSnapshotDetails(snapshotId) {
+            // Find the snapshot in our loaded data
+            const snapshot = allSnapshots.find(s => s.snapshot_id === snapshotId);
+            if (snapshot) {
+                // Store snapshot data in sessionStorage for the details page
+                sessionStorage.setItem('currentSnapshot', JSON.stringify(snapshot));
+            }
             window.location.href = `snapshot-details.php?id=${snapshotId}`;
         }
 

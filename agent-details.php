@@ -141,7 +141,7 @@ if (!hasApiKey()) {
                     <div class="mb-3">
                         <label class="form-label">Restore Type</label>
                         <div class="d-grid gap-2">
-                            <button class="btn btn-primary" onclick="startRestoreType('file')">
+                            <button class="btn btn-outline-primary" onclick="startRestoreType('file')">
                                 <i class="bi bi-file-earmark me-2"></i>File Restore
                                 <div><small>Browse and download individual files</small></div>
                             </button>
@@ -527,13 +527,16 @@ if (!hasApiKey()) {
                     } ${agent.active_backup['backup-status'] || agent.active_backup.status.charAt(0).toUpperCase() + agent.active_backup.status.slice(1)}
                 </button>` :
                 `<button class="btn btn-primary flex-grow-1" onclick="backupNow()">
-                    Backup Now
+                    <i class="bi bi-play-fill me-2"></i>Backup Now
                 </button>`;
 
             actionButtons.innerHTML = `
                 ${backupButton}
+                <button class="btn btn-outline-primary flex-grow-1" onclick="showRestoreModal()">
+                    <i class="bi bi-arrow-clockwise me-2"></i>Restore
+                </button>
                 <button class="btn btn-outline-primary flex-grow-1" onclick="viewSnapshots()">
-                    <i class="bi bi-camera me-2"></i>View Snapshots
+                    <i class="bi bi-camera me-2"></i>Snapshots
                 </button>
             `;
         }
