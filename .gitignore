@@ -1,0 +1,47 @@
+# Sensitive configuration files
+include/config.php
+
+# Environment files
+.env
+.env.local
+
+# Logs
+*.log
+logs/
+error_log
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# IDE/Editor files
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+.project
+.settings/
+*.iml
+
+# PHP
+composer.phar
+composer.lock
+
+# Cache and session files
+cache/
+sessions/
+tmp/
+
