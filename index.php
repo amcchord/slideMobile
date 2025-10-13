@@ -60,46 +60,54 @@ $hasKey = hasApiKey();
             <div class="row g-4">
                 <!-- Agents Card -->
                 <div class="col-6 col-md-3">
-                    <div class="card bg-dark h-100">
-                        <div class="card-body text-center">
-                            <i class="bi bi-pc mb-2" style="font-size: 1.5rem;"></i>
-                            <h3 class="card-title h2 mb-0" id="agentCount">-</h3>
-                            <div class="text-muted">Agents</div>
+                    <a href="/mobile/agents.php" class="text-decoration-none">
+                        <div class="card bg-dark h-100">
+                            <div class="card-body text-center">
+                                <i class="bi bi-pc mb-2" style="font-size: 1.5rem;"></i>
+                                <h3 class="card-title h2 mb-0" id="agentCount">-</h3>
+                                <div class="text-muted">Agents</div>
+                            </div>
                         </div>
-                    </div>
+                    </a>
                 </div>
                 
                 <!-- Devices Card -->
                 <div class="col-6 col-md-3">
-                    <div class="card bg-dark h-100">
-                        <div class="card-body text-center">
-                            <i class="bi bi-hdd mb-2" style="font-size: 1.5rem;"></i>
-                            <h3 class="card-title h2 mb-0" id="deviceCount">-</h3>
-                            <div class="text-muted">Devices</div>
+                    <a href="/mobile/devices.php" class="text-decoration-none">
+                        <div class="card bg-dark h-100">
+                            <div class="card-body text-center">
+                                <i class="bi bi-hdd mb-2" style="font-size: 1.5rem;"></i>
+                                <h3 class="card-title h2 mb-0" id="deviceCount">-</h3>
+                                <div class="text-muted">Devices</div>
+                            </div>
                         </div>
-                    </div>
+                    </a>
                 </div>
                 
                 <!-- Restores Card -->
                 <div class="col-6 col-md-3">
-                    <div class="card bg-dark h-100">
-                        <div class="card-body text-center">
-                            <i class="bi bi-arrow-counterclockwise mb-2" style="font-size: 1.5rem;"></i>
-                            <h3 class="card-title h2 mb-0" id="restoreCount">-</h3>
-                            <div class="text-muted">Active Restores</div>
+                    <a href="/mobile/restores.php" class="text-decoration-none">
+                        <div class="card bg-dark h-100">
+                            <div class="card-body text-center">
+                                <i class="bi bi-arrow-counterclockwise mb-2" style="font-size: 1.5rem;"></i>
+                                <h3 class="card-title h2 mb-0" id="restoreCount">-</h3>
+                                <div class="text-muted">Active Restores</div>
+                            </div>
                         </div>
-                    </div>
+                    </a>
                 </div>
                 
                 <!-- Alerts Card -->
                 <div class="col-6 col-md-3">
-                    <div class="card bg-dark h-100">
-                        <div class="card-body text-center">
-                            <i class="bi bi-exclamation-triangle mb-2" style="font-size: 1.5rem;"></i>
-                            <h3 class="card-title h2 mb-0" id="alertCount">-</h3>
-                            <div class="text-muted">Unresolved Alerts</div>
+                    <a href="/mobile/alerts.php" class="text-decoration-none">
+                        <div class="card bg-dark h-100">
+                            <div class="card-body text-center">
+                                <i class="bi bi-exclamation-triangle mb-2" style="font-size: 1.5rem;"></i>
+                                <h3 class="card-title h2 mb-0" id="alertCount">-</h3>
+                                <div class="text-muted">Unresolved Alerts</div>
+                            </div>
                         </div>
-                    </div>
+                    </a>
                 </div>
             </div>
         </div>

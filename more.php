@@ -98,6 +98,22 @@ if (!$hasKey) {
     <!-- Main Content -->
     <main class="flex-grow-1">
         <div class="more-list">
+            <!-- Overview Section -->
+            <div class="more-section">
+                <div class="more-section-title">Overview</div>
+                
+                <a href="/mobile/index.php" class="more-item">
+                    <div class="more-item-icon">
+                        <i class="bi bi-house"></i>
+                    </div>
+                    <div class="more-item-content">
+                        <div class="more-item-title">Dashboard</div>
+                        <div class="more-item-description">View system overview</div>
+                    </div>
+                    <i class="bi bi-chevron-right more-item-arrow"></i>
+                </a>
+            </div>
+
             <!-- Management Section -->
             <div class="more-section">
                 <div class="more-section-title">Management</div>
