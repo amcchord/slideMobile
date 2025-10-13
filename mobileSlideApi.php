@@ -1,6 +1,87 @@
 <?php
 require_once 'include/getApiKey.php';
 
+/**
+ * Log slow API queries to /tmp/slow_api_queries.log
+ * 
+ * @param string $url The API endpoint URL
+ * @param float $durationMs Duration in milliseconds
+ * @param string $apiKey The API key (will log last 6 chars only)
+ * @param string $method HTTP method (GET, POST, PUT, DELETE, etc.)
+ */
+function logSlowApiQuery($url, $durationMs, $apiKey, $method = 'GET') {
+    if ($durationMs <= 100) {
+        return;
+    }
+    
+    $timestamp = date('Y-m-d H:i:s');
+    $apiKeySuffix = substr($apiKey, -6);
+    $logEntry = sprintf(
+        "[%s] %dms %s %s API_KEY: ...%s\n",
+        $timestamp,
+        round($durationMs),
+        $method,
+        $url,
+        $apiKeySuffix
+    );
+    
+    file_put_contents('/tmp/slow_api_queries.log', $logEntry, FILE_APPEND);
+}
+
+/**
+ * Make a Slide API call with timing and logging
+ * 
+ * @param string $url The API endpoint URL
+ * @param string $apiKey The API key for authorization
+ * @param string $method HTTP method (GET, POST, PUT, DELETE, etc.)
+ * @param array|null $data Request body data (for POST/PUT)
+ * @param array $additionalHeaders Additional headers beyond Authorization
+ * @return array ['response' => string, 'httpCode' => int]
+ */
+function makeSlideApiCall($url, $apiKey, $method = 'GET', $data = null, $additionalHeaders = []) {
+    $ch = curl_init();
+    
+    $headers = array_merge([
+        'Authorization: Bearer ' . $apiKey,
+        'Accept: application/json'
+    ], $additionalHeaders);
+    
+    curl_setopt($ch, CURLOPT_URL, $url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    
+    if ($method === 'POST') {
+        curl_setopt($ch, CURLOPT_POST, true);
+    } else {
+        if ($method !== 'GET') {
+            curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
+        }
+    }
+    
+    if ($data !== null) {
+        if (!in_array('Content-Type: application/json', $headers)) {
+            $headers[] = 'Content-Type: application/json';
+        }
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+    }
+    
+    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+    
+    $startTime = microtime(true);
+    $response = curl_exec($ch);
+    $endTime = microtime(true);
+    
+    $durationMs = ($endTime - $startTime) * 1000;
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    
+    logSlowApiQuery($url, $durationMs, $apiKey, $method);
+    
+    return [
+        'response' => $response,
+        'httpCode' => $httpCode
+    ];
+}
+
 // Handle different API actions
 $action = isset($_GET['action']) ? $_GET['action'] : '';
 
@@ -158,6 +239,9 @@ switch ($action) {
     case 'getClient':
         handleGetClient();
         break;
+    case 'getSlowQueries':
+        handleGetSlowQueries();
+        break;
     default:
         http_response_code(400);
         echo json_encode([
@@ -195,17 +279,9 @@ function handleGetSnapshots() {
     }
 
     // Fetch snapshots
-    $ch = curl_init();
-    curl_setopt($ch, CURLOPT_URL, "https://api.slide.tech/v1/snapshot?" . implode('&', $queryParams));
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        'Authorization: Bearer ' . $apiKey,
-        'Accept: application/json'
-    ]);
-    
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
+    $result = makeSlideApiCall("https://api.slide.tech/v1/snapshot?" . implode('&', $queryParams), $apiKey);
+    $response = $result['response'];
+    $httpCode = $result['httpCode'];
     
     if ($httpCode !== 200 || !$response) {
         http_response_code(500);
@@ -238,15 +314,8 @@ function handleGetSnapshots() {
     // Fetch agents
     $agents = [];
     if (!empty($agentIds)) {
-        $ch = curl_init();
-        curl_setopt($ch, CURLOPT_URL, "https://api.slide.tech/v1/agent?limit=50");
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, [
-            'Authorization: Bearer ' . $apiKey,
-            'Accept: application/json'
-        ]);
-        
-        $response = curl_exec($ch);
+        $result = makeSlideApiCall("https://api.slide.tech/v1/agent?limit=50", $apiKey);
+        $response = $result['response'];
         if ($response) {
             $agentsData = json_decode($response, true);
             if (isset($agentsData['data'])) {
@@ -255,21 +324,13 @@ function handleGetSnapshots() {
                 }
             }
         }
-        curl_close($ch);
     }
 
     // Fetch devices
     $devices = [];
     if (!empty($deviceIds)) {
-        $ch = curl_init();
-        curl_setopt($ch, CURLOPT_URL, "https://api.slide.tech/v1/device?limit=50");
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, [
-            'Authorization: Bearer ' . $apiKey,
-            'Accept: application/json'
-        ]);
-        
-        $response = curl_exec($ch);
+        $result = makeSlideApiCall("https://api.slide.tech/v1/device?limit=50", $apiKey);
+        $response = $result['response'];
         if ($response) {
             $devicesData = json_decode($response, true);
             if (isset($devicesData['data'])) {
@@ -278,7 +339,6 @@ function handleGetSnapshots() {
                 }
             }
         }
-        curl_close($ch);
     }
 
     // Enrich snapshot data with agent and device info
@@ -319,19 +379,9 @@ function handleGetAgents() {
     }
 
     // Fetch agents
-    $ch = curl_init();
-    curl_setopt_array($ch, [
-        CURLOPT_URL => "https://api.slide.tech/v1/agent?limit=50",
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_HTTPHEADER => [
-            'Authorization: Bearer ' . $apiKey,
-            'Accept: application/json'
-        ]
-    ]);
-    
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
+    $result = makeSlideApiCall("https://api.slide.tech/v1/agent?limit=50", $apiKey);
+    $response = $result['response'];
+    $httpCode = $result['httpCode'];
     
     if ($httpCode !== 200 || !$response) {
         http_response_code(500);
@@ -360,18 +410,8 @@ function handleGetAgents() {
     // Fetch devices
     $devices = [];
     if (!empty($deviceIds)) {
-        $ch = curl_init();
-        curl_setopt_array($ch, [
-            CURLOPT_URL => "https://api.slide.tech/v1/device?limit=50",
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_HTTPHEADER => [
-                'Authorization: Bearer ' . $apiKey,
-                'Accept: application/json'
-            ]
-        ]);
-        
-        $deviceResponse = curl_exec($ch);
-        curl_close($ch);
+        $result = makeSlideApiCall("https://api.slide.tech/v1/device?limit=50", $apiKey);
+        $deviceResponse = $result['response'];
 
         if ($deviceResponse) {
             $devicesData = json_decode($deviceResponse, true);
@@ -391,16 +431,8 @@ function handleGetAgents() {
     }
 
     // Fetch alerts for all agents
-    $ch = curl_init();
-    curl_setopt($ch, CURLOPT_URL, "https://api.slide.tech/v1/alert?resolved=false");
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        'Authorization: Bearer ' . $apiKey,
-        'Accept: application/json'
-    ]);
-    
-    $alertsResponse = curl_exec($ch);
-    curl_close($ch);
+    $result = makeSlideApiCall("https://api.slide.tech/v1/alert?resolved=false", $apiKey);
+    $alertsResponse = $result['response'];
     
     $alertsByAgent = [];
     if ($alertsResponse) {
@@ -418,16 +450,8 @@ function handleGetAgents() {
     }
 
     // Fetch active backups
-    $ch = curl_init();
-    curl_setopt($ch, CURLOPT_URL, "https://api.slide.tech/v1/backup?limit=50");
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        'Authorization: Bearer ' . $apiKey,
-        'Accept: application/json'
-    ]);
-    
-    $backupsResponse = curl_exec($ch);
-    curl_close($ch);
+    $result = makeSlideApiCall("https://api.slide.tech/v1/backup?limit=50", $apiKey);
+    $backupsResponse = $result['response'];
     
     $activeBackupsByAgent = [];
     if ($backupsResponse) {
@@ -494,17 +518,9 @@ function handleGetAgent() {
     $agentId = $_GET['id'];
 
     // Fetch agent details
-    $ch = curl_init();
-    curl_setopt($ch, CURLOPT_URL, "https://api.slide.tech/v1/agent/" . $agentId);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        'Authorization: Bearer ' . $apiKey,
-        'Accept: application/json'
-    ]);
-    
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
+    $result = makeSlideApiCall("https://api.slide.tech/v1/agent/" . $agentId, $apiKey);
+    $response = $result['response'];
+    $httpCode = $result['httpCode'];
     
     if ($httpCode !== 200 || !$response) {
         http_response_code(500);
@@ -526,16 +542,8 @@ function handleGetAgent() {
     }
 
     // Get alerts for this agent
-    $ch = curl_init();
-    curl_setopt($ch, CURLOPT_URL, "https://api.slide.tech/v1/alert?agent_id=" . $agentId . "&resolved=false");
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        'Authorization: Bearer ' . $apiKey,
-        'Accept: application/json'
-    ]);
-    
-    $alertsResponse = curl_exec($ch);
-    curl_close($ch);
+    $result = makeSlideApiCall("https://api.slide.tech/v1/alert?agent_id=" . $agentId . "&resolved=false", $apiKey);
+    $alertsResponse = $result['response'];
     
     $agentData['alerts'] = [];
     if ($alertsResponse) {
@@ -548,24 +556,8 @@ function handleGetAgent() {
     }
 
     // Get active backup for this agent
-    $ch = curl_init();
-    curl_setopt($ch, CURLOPT_URL, "https://api.slide.tech/v1/backup?agent_id=" . $agentId . "&limit=1");
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        'Authorization: Bearer ' . $apiKey,
-        'Accept: application/json'
-    ]);
-
-    // Log equivalent curl command
-    // $curlCommand = sprintf(
-    //     'curl -X GET "https://api.slide.tech/v1/backup?agent_id=%s&limit=1" -H "Authorization: Bearer %s" -H "Accept: application/json"',
-    //     $agentId,
-    //     $apiKey
-    // );
-    // error_log("Equivalent curl command: " . $curlCommand);
-    
-    $backupResponse = curl_exec($ch);
-    curl_close($ch);
+    $result = makeSlideApiCall("https://api.slide.tech/v1/backup?agent_id=" . $agentId . "&limit=1", $apiKey);
+    $backupResponse = $result['response'];
     
     $agentData['active_backup'] = null;
     if ($backupResponse) {
@@ -624,21 +616,9 @@ function handleStartBackup() {
     }
 
     // Start the backup
-    $ch = curl_init();
-    curl_setopt_array($ch, [
-        CURLOPT_URL => "https://api.slide.tech/v1/backup",
-        CURLOPT_POST => true,
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_POSTFIELDS => json_encode(['agent_id' => $data['agent_id']]),
-        CURLOPT_HTTPHEADER => [
-            "Authorization: Bearer " . $apiKey,
-            "Content-Type: application/json"
-        ]
-    ]);
-    
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
+    $result = makeSlideApiCall("https://api.slide.tech/v1/backup", $apiKey, 'POST', ['agent_id' => $data['agent_id']]);
+    $response = $result['response'];
+    $httpCode = $result['httpCode'];
     
     if ($httpCode !== 200 && $httpCode !== 201 && $httpCode !== 202) {
         http_response_code(500);
@@ -679,35 +659,10 @@ function handleResolveAlert() {
         return;
     }
 
-    // Log the equivalent curl command
-    $curlCommand = sprintf(
-        'curl -X PATCH "https://api.slide.tech/v1/alert/%s" -H "Authorization: Bearer %s" -H "Content-Type: application/json" -d \'{"resolved":true}\'',
-        $data['alert_id'],
-        $apiKey
-    );
-    error_log("Equivalent curl command: " . $curlCommand);
-
     // Resolve the alert
-    $curl = curl_init();
-
-    curl_setopt_array($curl, [
-        CURLOPT_URL => "https://api.slide.tech/v1/alert/" . $data['alert_id'],
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_ENCODING => "",
-        CURLOPT_MAXREDIRS => 10,
-        CURLOPT_TIMEOUT => 30,
-        CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
-        CURLOPT_CUSTOMREQUEST => "PATCH",
-        CURLOPT_POSTFIELDS => json_encode(['resolved' => true]),
-        CURLOPT_HTTPHEADER => [
-            "Authorization: Bearer " . $apiKey,
-            "Content-Type: application/json"
-        ]
-    ]);
-    
-    $response = curl_exec($curl);
-    $httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
-    curl_close($curl);
+    $result = makeSlideApiCall("https://api.slide.tech/v1/alert/" . $data['alert_id'], $apiKey, 'PATCH', ['resolved' => true]);
+    $response = $result['response'];
+    $httpCode = $result['httpCode'];
     
     if ($httpCode !== 200 && $httpCode !== 201 && $httpCode !== 204) {
         error_log("Failed to resolve alert. Status: " . $httpCode . ", Response: " . $response);
@@ -733,19 +688,9 @@ function handleGetDevices() {
         return;
     }
 
-    $ch = curl_init();
-    curl_setopt_array($ch, [
-        CURLOPT_URL => "https://api.slide.tech/v1/device",
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_HTTPHEADER => [
-            "Authorization: Bearer " . $apiKey,
-            "Content-Type: application/json"
-        ]
-    ]);
-
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
+    $result = makeSlideApiCall("https://api.slide.tech/v1/device", $apiKey);
+    $response = $result['response'];
+    $httpCode = $result['httpCode'];
 
     if ($httpCode !== 200) {
         http_response_code($httpCode);
@@ -761,18 +706,8 @@ function handleGetDevices() {
     }
 
     // Fetch agents for all devices
-    $ch = curl_init();
-    curl_setopt_array($ch, [
-        CURLOPT_URL => "https://api.slide.tech/v1/agent",
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_HTTPHEADER => [
-            "Authorization: Bearer " . $apiKey,
-            "Content-Type: application/json"
-        ]
-    ]);
-
-    $agentsResponse = curl_exec($ch);
-    curl_close($ch);
+    $result = makeSlideApiCall("https://api.slide.tech/v1/agent", $apiKey);
+    $agentsResponse = $result['response'];
 
     // Log the agents response for debugging
     error_log("Agents response: " . $agentsResponse);
@@ -795,18 +730,8 @@ function handleGetDevices() {
     }
 
     // Fetch unresolved alerts for all devices
-    $ch = curl_init();
-    curl_setopt_array($ch, [
-        CURLOPT_URL => "https://api.slide.tech/v1/alert?status=unresolved",
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_HTTPHEADER => [
-            "Authorization: Bearer " . $apiKey,
-            "Content-Type: application/json"
-        ]
-    ]);
-
-    $alertsResponse = curl_exec($ch);
-    curl_close($ch);
+    $result = makeSlideApiCall("https://api.slide.tech/v1/alert?status=unresolved", $apiKey);
+    $alertsResponse = $result['response'];
 
     $alertsByDevice = [];
     if ($alertsResponse) {
@@ -846,19 +771,9 @@ function handleGetDevice() {
         return;
     }
 
-    $ch = curl_init();
-    curl_setopt_array($ch, [
-        CURLOPT_URL => "https://api.slide.tech/v1/device/" . $deviceId,
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_HTTPHEADER => [
-            "Authorization: Bearer " . $apiKey,
-            "Content-Type: application/json"
-        ]
-    ]);
-
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
+    $result = makeSlideApiCall("https://api.slide.tech/v1/device/" . $deviceId, $apiKey);
+    $response = $result['response'];
+    $httpCode = $result['httpCode'];
 
     // Log the response for debugging
     error_log("Device API response: " . $response);
@@ -885,18 +800,8 @@ function handleGetDevice() {
     $deviceData = $device;
 
     // Fetch agents for this device
-    $ch = curl_init();
-    curl_setopt_array($ch, [
-        CURLOPT_URL => "https://api.slide.tech/v1/agent",
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_HTTPHEADER => [
-            "Authorization: Bearer " . $apiKey,
-            "Content-Type: application/json"
-        ]
-    ]);
-
-    $agentsResponse = curl_exec($ch);
-    curl_close($ch);
+    $result = makeSlideApiCall("https://api.slide.tech/v1/agent", $apiKey);
+    $agentsResponse = $result['response'];
 
     $deviceData['agents'] = [];
     if ($agentsResponse) {
@@ -914,18 +819,8 @@ function handleGetDevice() {
     error_log("Device details: Device {$deviceId} has " . count($deviceData['agents']) . " agents");
 
     // Fetch unresolved alerts for this device
-    $ch = curl_init();
-    curl_setopt_array($ch, [
-        CURLOPT_URL => "https://api.slide.tech/v1/alert?status=unresolved&device_id=" . $deviceId,
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_HTTPHEADER => [
-            "Authorization: Bearer " . $apiKey,
-            "Content-Type: application/json"
-        ]
-    ]);
-
-    $alertsResponse = curl_exec($ch);
-    curl_close($ch);
+    $result = makeSlideApiCall("https://api.slide.tech/v1/alert?status=unresolved&device_id=" . $deviceId, $apiKey);
+    $alertsResponse = $result['response'];
 
     $deviceData['alerts'] = [];
     if ($alertsResponse) {
@@ -947,19 +842,9 @@ function handleGetFileRestores() {
     }
 
     // Fetch file restores
-    $ch = curl_init();
-    curl_setopt_array($ch, [
-        CURLOPT_URL => "https://api.slide.tech/v1/restore/file",
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_HTTPHEADER => [
-            'Authorization: Bearer ' . $apiKey,
-            'Accept: application/json'
-        ]
-    ]);
-
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
+    $result = makeSlideApiCall("https://api.slide.tech/v1/restore/file", $apiKey);
+    $response = $result['response'];
+    $httpCode = $result['httpCode'];
 
     if ($httpCode !== 200) {
         http_response_code($httpCode);
@@ -982,18 +867,8 @@ function handleGetFileRestores() {
     // Fetch agents to get their names
     $agents = [];
     if (!empty($agentIds)) {
-        $ch = curl_init();
-        curl_setopt_array($ch, [
-            CURLOPT_URL => "https://api.slide.tech/v1/agent",
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_HTTPHEADER => [
-                'Authorization: Bearer ' . $apiKey,
-                'Accept: application/json'
-            ]
-        ]);
-        
-        $agentsResponse = curl_exec($ch);
-        curl_close($ch);
+        $result = makeSlideApiCall("https://api.slide.tech/v1/agent", $apiKey);
+        $agentsResponse = $result['response'];
 
         if ($agentsResponse) {
             $agentsData = json_decode($agentsResponse, true);
@@ -1031,19 +906,9 @@ function handleGetImageExports() {
     }
 
     // Fetch image exports
-    $ch = curl_init();
-    curl_setopt_array($ch, [
-        CURLOPT_URL => "https://api.slide.tech/v1/restore/image",
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_HTTPHEADER => [
-            'Authorization: Bearer ' . $apiKey,
-            'Accept: application/json'
-        ]
-    ]);
-
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
+    $result = makeSlideApiCall("https://api.slide.tech/v1/restore/image", $apiKey);
+    $response = $result['response'];
+    $httpCode = $result['httpCode'];
 
     if ($httpCode !== 200) {
         http_response_code($httpCode);
@@ -1066,18 +931,8 @@ function handleGetImageExports() {
     // Fetch agents to get their names
     $agents = [];
     if (!empty($agentIds)) {
-        $ch = curl_init();
-        curl_setopt_array($ch, [
-            CURLOPT_URL => "https://api.slide.tech/v1/agent",
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_HTTPHEADER => [
-                'Authorization: Bearer ' . $apiKey,
-                'Accept: application/json'
-            ]
-        ]);
-        
-        $agentsResponse = curl_exec($ch);
-        curl_close($ch);
+        $result = makeSlideApiCall("https://api.slide.tech/v1/agent", $apiKey);
+        $agentsResponse = $result['response'];
 
         if ($agentsResponse) {
             $agentsData = json_decode($agentsResponse, true);
@@ -1110,19 +965,9 @@ function handleGetVirtualMachines() {
     }
 
     // Fetch virtual machines
-    $ch = curl_init();
-    curl_setopt_array($ch, [
-        CURLOPT_URL => "https://api.slide.tech/v1/restore/virt",
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_HTTPHEADER => [
-            'Authorization: Bearer ' . $apiKey,
-            'Accept: application/json'
-        ]
-    ]);
-
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
+    $result = makeSlideApiCall("https://api.slide.tech/v1/restore/virt", $apiKey);
+    $response = $result['response'];
+    $httpCode = $result['httpCode'];
 
     if ($httpCode !== 200) {
         http_response_code($httpCode);
@@ -1145,18 +990,8 @@ function handleGetVirtualMachines() {
     // Fetch agents to get their names
     $agents = [];
     if (!empty($agentIds)) {
-        $ch = curl_init();
-        curl_setopt_array($ch, [
-            CURLOPT_URL => "https://api.slide.tech/v1/agent",
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_HTTPHEADER => [
-                'Authorization: Bearer ' . $apiKey,
-                'Accept: application/json'
-            ]
-        ]);
-        
-        $agentsResponse = curl_exec($ch);
-        curl_close($ch);
+        $result = makeSlideApiCall("https://api.slide.tech/v1/agent", $apiKey);
+        $agentsResponse = $result['response'];
 
         if ($agentsResponse) {
             $agentsData = json_decode($agentsResponse, true);
@@ -1225,20 +1060,10 @@ function handleBrowseFileRestore() {
     
     error_log("Making API request to: " . $url);
 
-    $ch = curl_init();
-    curl_setopt_array($ch, [
-        CURLOPT_URL => $url,
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_HTTPHEADER => [
-            'Authorization: Bearer ' . $apiKey,
-            'Accept: application/json'
-        ]
-    ]);
-
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $error = curl_error($ch);
-    curl_close($ch);
+    $result = makeSlideApiCall($url, $apiKey);
+    $response = $result['response'];
+    $httpCode = $result['httpCode'];
+    $error = '';
 
     // Log the API response
     error_log("API response code: " . $httpCode);
@@ -1360,20 +1185,9 @@ function handleDeleteRestore() {
     }
 
     // Make API request to delete the restore
-    $ch = curl_init();
-    curl_setopt_array($ch, [
-        CURLOPT_URL => "https://api.slide.tech/v1/" . $endpoint,
-        CURLOPT_CUSTOMREQUEST => "DELETE",
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_HTTPHEADER => [
-            'Authorization: Bearer ' . $apiKey,
-            'Accept: application/json'
-        ]
-    ]);
-
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
+    $result = makeSlideApiCall("https://api.slide.tech/v1/" . $endpoint, $apiKey, 'DELETE');
+    $response = $result['response'];
+    $httpCode = $result['httpCode'];
 
     if ($httpCode === 404) {
         http_response_code(404);
@@ -1424,19 +1238,9 @@ function handleCreateFileRestore() {
     }
 
     // Get device ID for the agent
-    $ch = curl_init();
-    curl_setopt_array($ch, [
-        CURLOPT_URL => "https://api.slide.tech/v1/agent/" . $data['agent_id'],
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_HTTPHEADER => [
-            'Authorization: Bearer ' . $apiKey,
-            'Accept: application/json'
-        ]
-    ]);
-
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
+    $result = makeSlideApiCall("https://api.slide.tech/v1/agent/" . $data['agent_id'], $apiKey);
+    $response = $result['response'];
+    $httpCode = $result['httpCode'];
 
     if ($httpCode !== 200 || !$response) {
         http_response_code(500);
@@ -1458,24 +1262,12 @@ function handleCreateFileRestore() {
     }
 
     // Create file restore
-    $ch = curl_init();
-    curl_setopt_array($ch, [
-        CURLOPT_URL => "https://api.slide.tech/v1/restore/file",
-        CURLOPT_POST => true,
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_POSTFIELDS => json_encode([
-            'snapshot_id' => $data['snapshot_id'],
-            'device_id' => $agentData['device_id']
-        ]),
-        CURLOPT_HTTPHEADER => [
-            'Authorization: Bearer ' . $apiKey,
-            'Content-Type: application/json'
-        ]
+    $result = makeSlideApiCall("https://api.slide.tech/v1/restore/file", $apiKey, 'POST', [
+        'snapshot_id' => $data['snapshot_id'],
+        'device_id' => $agentData['device_id']
     ]);
-
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
+    $response = $result['response'];
+    $httpCode = $result['httpCode'];
 
     if ($httpCode !== 201) {
         http_response_code($httpCode);
@@ -1518,17 +1310,9 @@ function handleCreateVirtualMachine() {
     }
     
     // Get device ID for the agent
-    $ch = curl_init();
-    curl_setopt($ch, CURLOPT_URL, "https://api.slide.tech/v1/agent/" . urlencode($data['agent_id']));
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        'Authorization: Bearer ' . $apiKey,
-        'Accept: application/json'
-    ]);
-    
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
+    $result = makeSlideApiCall("https://api.slide.tech/v1/agent/" . urlencode($data['agent_id']), $apiKey);
+    $response = $result['response'];
+    $httpCode = $result['httpCode'];
     
     if ($httpCode !== 200 || !$response) {
         http_response_code(500);
@@ -1543,16 +1327,6 @@ function handleCreateVirtualMachine() {
     $deviceId = $agentData['device_id'];
     
     // Create virtual machine restore
-    $ch = curl_init();
-    curl_setopt($ch, CURLOPT_URL, "https://api.slide.tech/v1/restore/virt");
-    curl_setopt($ch, CURLOPT_POST, true);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        'Authorization: Bearer ' . $apiKey,
-        'Accept: application/json',
-        'Content-Type: application/json'
-    ]);
-    
     $requestBody = [
         'snapshot_id' => $data['snapshot_id'],
         'agent_id' => $data['agent_id'],
@@ -1569,11 +1343,9 @@ function handleCreateVirtualMachine() {
         $requestBody['network_source'] = $data['network_source'];
     }
     
-    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($requestBody));
-    
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
+    $result = makeSlideApiCall("https://api.slide.tech/v1/restore/virt", $apiKey, 'POST', $requestBody);
+    $response = $result['response'];
+    $httpCode = $result['httpCode'];
     
     if ($httpCode !== 201 || !$response) {
         http_response_code(500);
@@ -1603,19 +1375,9 @@ function handleGetAlerts() {
     }
 
     // Fetch alerts
-    $ch = curl_init();
-    curl_setopt_array($ch, [
-        CURLOPT_URL => "https://api.slide.tech/v1/alert?resolved=false",
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_HTTPHEADER => [
-            'Authorization: Bearer ' . $apiKey,
-            'Accept: application/json'
-        ]
-    ]);
-
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
+    $result = makeSlideApiCall("https://api.slide.tech/v1/alert?resolved=false", $apiKey);
+    $response = $result['response'];
+    $httpCode = $result['httpCode'];
 
     if ($httpCode !== 200) {
         http_response_code($httpCode);
@@ -1687,21 +1449,9 @@ function handleUpdateVirtualMachine() {
     }
 
     // Update virtual machine state
-    $ch = curl_init();
-    curl_setopt_array($ch, [
-        CURLOPT_URL => "https://api.slide.tech/v1/restore/virt/" . urlencode($_GET['id']),
-        CURLOPT_CUSTOMREQUEST => "PATCH",
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_POSTFIELDS => json_encode(['state' => $data['state']]),
-        CURLOPT_HTTPHEADER => [
-            'Authorization: Bearer ' . $apiKey,
-            'Content-Type: application/json'
-        ]
-    ]);
-
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
+    $result = makeSlideApiCall("https://api.slide.tech/v1/restore/virt/" . urlencode($_GET['id']), $apiKey, 'PATCH', ['state' => $data['state']]);
+    $response = $result['response'];
+    $httpCode = $result['httpCode'];
 
     if ($httpCode === 404) {
         http_response_code(404);
@@ -1740,19 +1490,9 @@ function handleGetNetworks() {
     }
 
     // Fetch networks
-    $ch = curl_init();
-    curl_setopt_array($ch, [
-        CURLOPT_URL => "https://api.slide.tech/v1/network?limit=50",
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_HTTPHEADER => [
-            'Authorization: Bearer ' . $apiKey,
-            'Accept: application/json'
-        ]
-    ]);
-
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
+    $result = makeSlideApiCall("https://api.slide.tech/v1/network?limit=50", $apiKey);
+    $response = $result['response'];
+    $httpCode = $result['httpCode'];
 
     if ($httpCode !== 200) {
         http_response_code($httpCode);
@@ -1802,19 +1542,9 @@ function handleGetNetwork() {
     $networkId = $_GET['id'];
 
     // Fetch network details
-    $ch = curl_init();
-    curl_setopt_array($ch, [
-        CURLOPT_URL => "https://api.slide.tech/v1/network/" . urlencode($networkId),
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_HTTPHEADER => [
-            'Authorization: Bearer ' . $apiKey,
-            'Accept: application/json'
-        ]
-    ]);
-
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
+    $result = makeSlideApiCall("https://api.slide.tech/v1/network/" . urlencode($networkId), $apiKey);
+    $response = $result['response'];
+    $httpCode = $result['httpCode'];
 
     if ($httpCode === 404) {
         http_response_code(404);
@@ -1846,18 +1576,8 @@ function handleGetNetwork() {
 
     // If the network has connected VMs, fetch their details
     if (!empty($networkData['connected_virt_ids'])) {
-        $ch = curl_init();
-        curl_setopt_array($ch, [
-            CURLOPT_URL => "https://api.slide.tech/v1/restore/virt",
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_HTTPHEADER => [
-                'Authorization: Bearer ' . $apiKey,
-                'Accept: application/json'
-            ]
-        ]);
-
-        $vmsResponse = curl_exec($ch);
-        curl_close($ch);
+        $result = makeSlideApiCall("https://api.slide.tech/v1/restore/virt", $apiKey);
+        $vmsResponse = $result['response'];
 
         $networkData['connected_vms'] = [];
         if ($vmsResponse) {
@@ -1903,22 +1623,9 @@ function handleCreateNetwork() {
     }
 
     // Create network
-    $ch = curl_init();
-    curl_setopt_array($ch, [
-        CURLOPT_URL => "https://api.slide.tech/v1/network",
-        CURLOPT_POST => true,
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_POSTFIELDS => json_encode($data),
-        CURLOPT_HTTPHEADER => [
-            'Authorization: Bearer ' . $apiKey,
-            'Content-Type: application/json',
-            'Accept: application/json'
-        ]
-    ]);
-
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
+    $result = makeSlideApiCall("https://api.slide.tech/v1/network", $apiKey, 'POST', $data);
+    $response = $result['response'];
+    $httpCode = $result['httpCode'];
 
     if ($httpCode !== 201) {
         http_response_code($httpCode);
@@ -1961,20 +1668,9 @@ function handleDeleteNetwork() {
     }
 
     // Delete network
-    $ch = curl_init();
-    curl_setopt_array($ch, [
-        CURLOPT_URL => "https://api.slide.tech/v1/network/" . urlencode($data['network_id']),
-        CURLOPT_CUSTOMREQUEST => "DELETE",
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_HTTPHEADER => [
-            'Authorization: Bearer ' . $apiKey,
-            'Accept: application/json'
-        ]
-    ]);
-
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
+    $result = makeSlideApiCall("https://api.slide.tech/v1/network/" . urlencode($data['network_id']), $apiKey, 'DELETE');
+    $response = $result['response'];
+    $httpCode = $result['httpCode'];
 
     if ($httpCode === 404) {
         http_response_code(404);
@@ -2025,22 +1721,9 @@ function handleUpdateNetwork() {
     $data = json_decode($json, true);
 
     // Update network
-    $ch = curl_init();
-    curl_setopt_array($ch, [
-        CURLOPT_URL => "https://api.slide.tech/v1/network/" . urlencode($_GET['id']),
-        CURLOPT_CUSTOMREQUEST => "PATCH",
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_POSTFIELDS => json_encode($data),
-        CURLOPT_HTTPHEADER => [
-            'Authorization: Bearer ' . $apiKey,
-            'Content-Type: application/json',
-            'Accept: application/json'
-        ]
-    ]);
-
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
+    $result = makeSlideApiCall("https://api.slide.tech/v1/network/" . urlencode($_GET['id']), $apiKey, 'PATCH', $data);
+    $response = $result['response'];
+    $httpCode = $result['httpCode'];
 
     if ($httpCode === 404) {
         http_response_code(404);
@@ -2092,25 +1775,12 @@ function handlePairAgent() {
     }
 
     // Pair agent
-    $ch = curl_init();
-    curl_setopt_array($ch, [
-        CURLOPT_URL => "https://api.slide.tech/v1/agent/pair",
-        CURLOPT_POST => true,
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_POSTFIELDS => json_encode([
-            'device_id' => $data['device_id'],
-            'pair_code' => $data['pair_code']
-        ]),
-        CURLOPT_HTTPHEADER => [
-            'Authorization: Bearer ' . $apiKey,
-            'Content-Type: application/json',
-            'Accept: application/json'
-        ]
+    $result = makeSlideApiCall("https://api.slide.tech/v1/agent/pair", $apiKey, 'POST', [
+        'device_id' => $data['device_id'],
+        'pair_code' => $data['pair_code']
     ]);
-
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
+    $response = $result['response'];
+    $httpCode = $result['httpCode'];
 
     if ($httpCode !== 200) {
         http_response_code($httpCode);
@@ -2161,25 +1831,12 @@ function handleCreateAgentForPairing() {
     }
 
     // Create agent for pairing
-    $ch = curl_init();
-    curl_setopt_array($ch, [
-        CURLOPT_URL => "https://api.slide.tech/v1/agent",
-        CURLOPT_POST => true,
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_POSTFIELDS => json_encode([
-            'device_id' => $data['device_id'],
-            'display_name' => $data['display_name']
-        ]),
-        CURLOPT_HTTPHEADER => [
-            'Authorization: Bearer ' . $apiKey,
-            'Content-Type: application/json',
-            'Accept: application/json'
-        ]
+    $result = makeSlideApiCall("https://api.slide.tech/v1/agent", $apiKey, 'POST', [
+        'device_id' => $data['device_id'],
+        'display_name' => $data['display_name']
     ]);
-
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
+    $response = $result['response'];
+    $httpCode = $result['httpCode'];
 
     if ($httpCode !== 201) {
         http_response_code($httpCode);
@@ -2227,24 +1884,11 @@ function handleUpdateAlert() {
     }
 
     // Update alert
-    $ch = curl_init();
-    curl_setopt_array($ch, [
-        CURLOPT_URL => "https://api.slide.tech/v1/alert/" . urlencode($data['alert_id']),
-        CURLOPT_CUSTOMREQUEST => "PATCH",
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_POSTFIELDS => json_encode([
-            'resolved' => $data['resolved']
-        ]),
-        CURLOPT_HTTPHEADER => [
-            'Authorization: Bearer ' . $apiKey,
-            'Content-Type: application/json',
-            'Accept: application/json'
-        ]
+    $result = makeSlideApiCall("https://api.slide.tech/v1/alert/" . urlencode($data['alert_id']), $apiKey, 'PATCH', [
+        'resolved' => $data['resolved']
     ]);
-
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
+    $response = $result['response'];
+    $httpCode = $result['httpCode'];
 
     // Parse the response data to get error details
     $responseData = json_decode($response, true);
@@ -2304,19 +1948,9 @@ function handleGetClients() {
     }
 
     // Fetch clients
-    $ch = curl_init();
-    curl_setopt_array($ch, [
-        CURLOPT_URL => "https://api.slide.tech/v1/client?limit=50",
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_HTTPHEADER => [
-            'Authorization: Bearer ' . $apiKey,
-            'Accept: application/json'
-        ]
-    ]);
-
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
+    $result = makeSlideApiCall("https://api.slide.tech/v1/client?limit=50", $apiKey);
+    $response = $result['response'];
+    $httpCode = $result['httpCode'];
 
     if ($httpCode !== 200) {
         http_response_code($httpCode);
@@ -2369,22 +2003,9 @@ function handleCreateIpsec() {
     $data = json_decode($json, true);
 
     // Create IPsec connection
-    $ch = curl_init();
-    curl_setopt_array($ch, [
-        CURLOPT_URL => "https://api.slide.tech/v1/network/" . urlencode($networkId) . "/ipsec",
-        CURLOPT_POST => true,
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_POSTFIELDS => json_encode($data),
-        CURLOPT_HTTPHEADER => [
-            'Authorization: Bearer ' . $apiKey,
-            'Content-Type: application/json',
-            'Accept: application/json'
-        ]
-    ]);
-
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
+    $result = makeSlideApiCall("https://api.slide.tech/v1/network/" . urlencode($networkId) . "/ipsec", $apiKey, 'POST', $data);
+    $response = $result['response'];
+    $httpCode = $result['httpCode'];
 
     if ($httpCode !== 201) {
         http_response_code($httpCode);
@@ -2428,22 +2049,9 @@ function handleUpdateIpsec() {
     $data = json_decode($json, true);
 
     // Update IPsec connection
-    $ch = curl_init();
-    curl_setopt_array($ch, [
-        CURLOPT_URL => "https://api.slide.tech/v1/network/" . urlencode($networkId) . "/ipsec/" . urlencode($ipsecId),
-        CURLOPT_CUSTOMREQUEST => "PATCH",
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_POSTFIELDS => json_encode($data),
-        CURLOPT_HTTPHEADER => [
-            'Authorization: Bearer ' . $apiKey,
-            'Content-Type: application/json',
-            'Accept: application/json'
-        ]
-    ]);
-
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
+    $result = makeSlideApiCall("https://api.slide.tech/v1/network/" . urlencode($networkId) . "/ipsec/" . urlencode($ipsecId), $apiKey, 'PATCH', $data);
+    $response = $result['response'];
+    $httpCode = $result['httpCode'];
 
     if ($httpCode !== 200) {
         http_response_code($httpCode);
@@ -2485,20 +2093,9 @@ function handleDeleteIpsec() {
     $ipsecId = $_GET['ipsecId'];
 
     // Delete IPsec connection
-    $ch = curl_init();
-    curl_setopt_array($ch, [
-        CURLOPT_URL => "https://api.slide.tech/v1/network/" . urlencode($networkId) . "/ipsec/" . urlencode($ipsecId),
-        CURLOPT_CUSTOMREQUEST => "DELETE",
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_HTTPHEADER => [
-            'Authorization: Bearer ' . $apiKey,
-            'Accept: application/json'
-        ]
-    ]);
-
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
+    $result = makeSlideApiCall("https://api.slide.tech/v1/network/" . urlencode($networkId) . "/ipsec/" . urlencode($ipsecId), $apiKey, 'DELETE');
+    $response = $result['response'];
+    $httpCode = $result['httpCode'];
 
     if ($httpCode !== 204) {
         http_response_code($httpCode);
@@ -2541,22 +2138,9 @@ function handleCreatePortForward() {
     $data = json_decode($json, true);
 
     // Create port forward
-    $ch = curl_init();
-    curl_setopt_array($ch, [
-        CURLOPT_URL => "https://api.slide.tech/v1/network/" . urlencode($networkId) . "/port-forward",
-        CURLOPT_POST => true,
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_POSTFIELDS => json_encode($data),
-        CURLOPT_HTTPHEADER => [
-            'Authorization: Bearer ' . $apiKey,
-            'Content-Type: application/json',
-            'Accept: application/json'
-        ]
-    ]);
-
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
+    $result = makeSlideApiCall("https://api.slide.tech/v1/network/" . urlencode($networkId) . "/port-forward", $apiKey, 'POST', $data);
+    $response = $result['response'];
+    $httpCode = $result['httpCode'];
 
     if ($httpCode !== 201) {
         http_response_code($httpCode);
@@ -2600,22 +2184,9 @@ function handleUpdatePortForward() {
     $data = json_decode($json, true);
 
     // Update port forward
-    $ch = curl_init();
-    curl_setopt_array($ch, [
-        CURLOPT_URL => "https://api.slide.tech/v1/network/" . urlencode($networkId) . "/port-forward/" . urlencode($portForwardId),
-        CURLOPT_CUSTOMREQUEST => "PATCH",
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_POSTFIELDS => json_encode($data),
-        CURLOPT_HTTPHEADER => [
-            'Authorization: Bearer ' . $apiKey,
-            'Content-Type: application/json',
-            'Accept: application/json'
-        ]
-    ]);
-
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
+    $result = makeSlideApiCall("https://api.slide.tech/v1/network/" . urlencode($networkId) . "/port-forward/" . urlencode($portForwardId), $apiKey, 'PATCH', $data);
+    $response = $result['response'];
+    $httpCode = $result['httpCode'];
 
     if ($httpCode !== 201 && $httpCode !== 200) {
         http_response_code($httpCode);
@@ -2657,20 +2228,9 @@ function handleDeletePortForward() {
     $portForwardId = $_GET['portForwardId'];
 
     // Delete port forward
-    $ch = curl_init();
-    curl_setopt_array($ch, [
-        CURLOPT_URL => "https://api.slide.tech/v1/network/" . urlencode($networkId) . "/port-forward/" . urlencode($portForwardId),
-        CURLOPT_CUSTOMREQUEST => "DELETE",
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_HTTPHEADER => [
-            'Authorization: Bearer ' . $apiKey,
-            'Accept: application/json'
-        ]
-    ]);
-
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
+    $result = makeSlideApiCall("https://api.slide.tech/v1/network/" . urlencode($networkId) . "/port-forward/" . urlencode($portForwardId), $apiKey, 'DELETE');
+    $response = $result['response'];
+    $httpCode = $result['httpCode'];
 
     if ($httpCode !== 204) {
         http_response_code($httpCode);
@@ -2713,22 +2273,9 @@ function handleCreateWgPeer() {
     $data = json_decode($json, true);
 
     // Create WireGuard peer
-    $ch = curl_init();
-    curl_setopt_array($ch, [
-        CURLOPT_URL => "https://api.slide.tech/v1/network/" . urlencode($networkId) . "/wg-peer",
-        CURLOPT_POST => true,
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_POSTFIELDS => json_encode($data),
-        CURLOPT_HTTPHEADER => [
-            'Authorization: Bearer ' . $apiKey,
-            'Content-Type: application/json',
-            'Accept: application/json'
-        ]
-    ]);
-
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
+    $result = makeSlideApiCall("https://api.slide.tech/v1/network/", $apiKey, 'POST', $data);
+    $response = $result['response'];
+    $httpCode = $result['httpCode'];
 
     if ($httpCode !== 201) {
         http_response_code($httpCode);
@@ -2772,22 +2319,9 @@ function handleUpdateWgPeer() {
     $data = json_decode($json, true);
 
     // Update WireGuard peer
-    $ch = curl_init();
-    curl_setopt_array($ch, [
-        CURLOPT_URL => "https://api.slide.tech/v1/network/" . urlencode($networkId) . "/wg-peer/" . urlencode($wgPeerId),
-        CURLOPT_CUSTOMREQUEST => "PATCH",
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_POSTFIELDS => json_encode($data),
-        CURLOPT_HTTPHEADER => [
-            'Authorization: Bearer ' . $apiKey,
-            'Content-Type: application/json',
-            'Accept: application/json'
-        ]
-    ]);
-
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
+    $result = makeSlideApiCall("https://api.slide.tech/v1/network/", $apiKey, 'PATCH', $data);
+    $response = $result['response'];
+    $httpCode = $result['httpCode'];
 
     if ($httpCode !== 201 && $httpCode !== 200) {
         http_response_code($httpCode);
@@ -2829,20 +2363,9 @@ function handleDeleteWgPeer() {
     $wgPeerId = $_GET['wgPeerId'];
 
     // Delete WireGuard peer
-    $ch = curl_init();
-    curl_setopt_array($ch, [
-        CURLOPT_URL => "https://api.slide.tech/v1/network/" . urlencode($networkId) . "/wg-peer/" . urlencode($wgPeerId),
-        CURLOPT_CUSTOMREQUEST => "DELETE",
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_HTTPHEADER => [
-            'Authorization: Bearer ' . $apiKey,
-            'Accept: application/json'
-        ]
-    ]);
-
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
+    $result = makeSlideApiCall("https://api.slide.tech/v1/network/", $apiKey, 'DELETE');
+    $response = $result['response'];
+    $httpCode = $result['httpCode'];
 
     if ($httpCode !== 204) {
         http_response_code($httpCode);
@@ -2882,16 +2405,9 @@ function handleGetAccounts() {
     ];
 
     $ch = curl_init();
-    curl_setopt($ch, CURLOPT_URL, "https://api.slide.tech/v1/account?" . implode('&', $queryParams));
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        'Authorization: Bearer ' . $apiKey,
-        'Accept: application/json'
-    ]);
-
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
+    $result = makeSlideApiCall("https://api.slide.tech/v1/account?" . implode('&', $queryParams), $apiKey);
+    $response = $result['response'];
+    $httpCode = $result['httpCode'];
 
     if ($httpCode !== 200) {
         http_response_code($httpCode);
@@ -2933,16 +2449,9 @@ function handleGetAccount() {
     $accountId = $_GET['account_id'];
 
     $ch = curl_init();
-    curl_setopt($ch, CURLOPT_URL, "https://api.slide.tech/v1/account/" . urlencode($accountId));
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        'Authorization: Bearer ' . $apiKey,
-        'Accept: application/json'
-    ]);
-
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
+    $result = makeSlideApiCall("https://api.slide.tech/v1/account/" . urlencode($accountId), $apiKey);
+    $response = $result['response'];
+    $httpCode = $result['httpCode'];
 
     if ($httpCode !== 200) {
         http_response_code($httpCode);
@@ -2984,22 +2493,9 @@ function handleUpdateAccount() {
     $json = file_get_contents('php://input');
     $data = json_decode($json, true);
 
-    $ch = curl_init();
-    curl_setopt_array($ch, [
-        CURLOPT_URL => "https://api.slide.tech/v1/account/" . urlencode($accountId),
-        CURLOPT_CUSTOMREQUEST => "PATCH",
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_POSTFIELDS => json_encode($data),
-        CURLOPT_HTTPHEADER => [
-            'Authorization: Bearer ' . $apiKey,
-            'Content-Type: application/json',
-            'Accept: application/json'
-        ]
-    ]);
-
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
+    $result = makeSlideApiCall("https://api.slide.tech/v1/account/", $apiKey, 'PATCH', $data);
+    $response = $result['response'];
+    $httpCode = $result['httpCode'];
 
     if ($httpCode !== 200) {
         http_response_code($httpCode);
@@ -3040,16 +2536,9 @@ function handleGetUsers() {
     ];
 
     $ch = curl_init();
-    curl_setopt($ch, CURLOPT_URL, "https://api.slide.tech/v1/user?" . implode('&', $queryParams));
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        'Authorization: Bearer ' . $apiKey,
-        'Accept: application/json'
-    ]);
-
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
+    $result = makeSlideApiCall("https://api.slide.tech/v1/user?" . implode('&', $queryParams), $apiKey);
+    $response = $result['response'];
+    $httpCode = $result['httpCode'];
 
     if ($httpCode !== 200) {
         http_response_code($httpCode);
@@ -3091,16 +2580,9 @@ function handleGetUser() {
     $userId = $_GET['user_id'];
 
     $ch = curl_init();
-    curl_setopt($ch, CURLOPT_URL, "https://api.slide.tech/v1/user/" . urlencode($userId));
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        'Authorization: Bearer ' . $apiKey,
-        'Accept: application/json'
-    ]);
-
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
+    $result = makeSlideApiCall("https://api.slide.tech/v1/user/" . urlencode($userId), $apiKey);
+    $response = $result['response'];
+    $httpCode = $result['httpCode'];
 
     if ($httpCode !== 200) {
         http_response_code($httpCode);
@@ -3149,16 +2631,9 @@ function handleGetAudits() {
     }
 
     $ch = curl_init();
-    curl_setopt($ch, CURLOPT_URL, "https://api.slide.tech/v1/audit?" . implode('&', $queryParams));
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        'Authorization: Bearer ' . $apiKey,
-        'Accept: application/json'
-    ]);
-
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
+    $result = makeSlideApiCall("https://api.slide.tech/v1/audit?" . implode('&', $queryParams), $apiKey);
+    $response = $result['response'];
+    $httpCode = $result['httpCode'];
 
     if ($httpCode !== 200) {
         http_response_code($httpCode);
@@ -3199,17 +2674,9 @@ function handleGetAudit() {
 
     $auditId = $_GET['audit_id'];
 
-    $ch = curl_init();
-    curl_setopt($ch, CURLOPT_URL, "https://api.slide.tech/v1/audit/" . urlencode($auditId));
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        'Authorization: Bearer ' . $apiKey,
-        'Accept: application/json'
-    ]);
-
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
+    $result = makeSlideApiCall("https://api.slide.tech/v1/audit/" . urlencode($auditId), $apiKey);
+    $response = $result['response'];
+    $httpCode = $result['httpCode'];
 
     if ($httpCode !== 200) {
         http_response_code($httpCode);
@@ -3245,17 +2712,9 @@ function handleGetAuditActions() {
         'sort_asc=true'
     ];
 
-    $ch = curl_init();
-    curl_setopt($ch, CURLOPT_URL, "https://api.slide.tech/v1/audit/action?" . implode('&', $queryParams));
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        'Authorization: Bearer ' . $apiKey,
-        'Accept: application/json'
-    ]);
-
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
+    $result = makeSlideApiCall("https://api.slide.tech/v1/audit/action?" . implode('&', $queryParams), $apiKey);
+    $response = $result['response'];
+    $httpCode = $result['httpCode'];
 
     if ($httpCode !== 200) {
         http_response_code($httpCode);
@@ -3291,17 +2750,9 @@ function handleGetAuditResourceTypes() {
         'sort_asc=true'
     ];
 
-    $ch = curl_init();
-    curl_setopt($ch, CURLOPT_URL, "https://api.slide.tech/v1/audit/resource?" . implode('&', $queryParams));
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        'Authorization: Bearer ' . $apiKey,
-        'Accept: application/json'
-    ]);
-
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
+    $result = makeSlideApiCall("https://api.slide.tech/v1/audit/resource?" . implode('&', $queryParams), $apiKey);
+    $response = $result['response'];
+    $httpCode = $result['httpCode'];
 
     if ($httpCode !== 200) {
         http_response_code($httpCode);
@@ -3342,21 +2793,9 @@ function handleRebootDevice() {
 
     $deviceId = $_GET['device_id'];
 
-    $ch = curl_init();
-    curl_setopt_array($ch, [
-        CURLOPT_URL => "https://api.slide.tech/v1/device/" . urlencode($deviceId) . "/shutdown/reboot",
-        CURLOPT_POST => true,
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_HTTPHEADER => [
-            'Authorization: Bearer ' . $apiKey,
-            'Content-Type: application/json',
-            'Accept: application/json'
-        ]
-    ]);
-
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
+    $result = makeSlideApiCall("https://api.slide.tech/v1/device/", $apiKey, 'POST');
+    $response = $result['response'];
+    $httpCode = $result['httpCode'];
 
     if ($httpCode !== 202) {
         http_response_code($httpCode);
@@ -3397,21 +2836,9 @@ function handlePowerOffDevice() {
 
     $deviceId = $_GET['device_id'];
 
-    $ch = curl_init();
-    curl_setopt_array($ch, [
-        CURLOPT_URL => "https://api.slide.tech/v1/device/" . urlencode($deviceId) . "/shutdown/poweroff",
-        CURLOPT_POST => true,
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_HTTPHEADER => [
-            'Authorization: Bearer ' . $apiKey,
-            'Content-Type: application/json',
-            'Accept: application/json'
-        ]
-    ]);
-
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
+    $result = makeSlideApiCall("https://api.slide.tech/v1/device/", $apiKey, 'POST');
+    $response = $result['response'];
+    $httpCode = $result['httpCode'];
 
     if ($httpCode !== 202) {
         http_response_code($httpCode);
@@ -3464,17 +2891,9 @@ function handleGetBackups() {
         $queryParams[] = 'snapshot_id=' . urlencode($_GET['snapshot_id']);
     }
 
-    $ch = curl_init();
-    curl_setopt($ch, CURLOPT_URL, "https://api.slide.tech/v1/backup?" . implode('&', $queryParams));
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        'Authorization: Bearer ' . $apiKey,
-        'Accept: application/json'
-    ]);
-
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
+    $result = makeSlideApiCall("https://api.slide.tech/v1/backup?" . implode('&', $queryParams), $apiKey);
+    $response = $result['response'];
+    $httpCode = $result['httpCode'];
 
     if ($httpCode !== 200) {
         http_response_code($httpCode);
@@ -3515,17 +2934,9 @@ function handleGetBackup() {
 
     $backupId = $_GET['backup_id'];
 
-    $ch = curl_init();
-    curl_setopt($ch, CURLOPT_URL, "https://api.slide.tech/v1/backup/" . urlencode($backupId));
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        'Authorization: Bearer ' . $apiKey,
-        'Accept: application/json'
-    ]);
-
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
+    $result = makeSlideApiCall("https://api.slide.tech/v1/backup/" . urlencode($backupId), $apiKey);
+    $response = $result['response'];
+    $httpCode = $result['httpCode'];
 
     if ($httpCode !== 200) {
         http_response_code($httpCode);
@@ -3558,22 +2969,9 @@ function handleCreateClient() {
     $json = file_get_contents('php://input');
     $data = json_decode($json, true);
 
-    $ch = curl_init();
-    curl_setopt_array($ch, [
-        CURLOPT_URL => "https://api.slide.tech/v1/client",
-        CURLOPT_POST => true,
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_POSTFIELDS => json_encode($data),
-        CURLOPT_HTTPHEADER => [
-            'Authorization: Bearer ' . $apiKey,
-            'Content-Type: application/json',
-            'Accept: application/json'
-        ]
-    ]);
-
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
+    $result = makeSlideApiCall("https://api.slide.tech/v1/client", $apiKey, 'POST', $data);
+    $response = $result['response'];
+    $httpCode = $result['httpCode'];
 
     if ($httpCode !== 201) {
         http_response_code($httpCode);
@@ -3613,17 +3011,9 @@ function handleGetClient() {
 
     $clientId = $_GET['client_id'];
 
-    $ch = curl_init();
-    curl_setopt($ch, CURLOPT_URL, "https://api.slide.tech/v1/client/" . urlencode($clientId));
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        'Authorization: Bearer ' . $apiKey,
-        'Accept: application/json'
-    ]);
-
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
+    $result = makeSlideApiCall("https://api.slide.tech/v1/client/" . urlencode($clientId), $apiKey);
+    $response = $result['response'];
+    $httpCode = $result['httpCode'];
 
     if ($httpCode !== 200) {
         http_response_code($httpCode);
@@ -3665,22 +3055,9 @@ function handleUpdateClient() {
     $json = file_get_contents('php://input');
     $data = json_decode($json, true);
 
-    $ch = curl_init();
-    curl_setopt_array($ch, [
-        CURLOPT_URL => "https://api.slide.tech/v1/client/" . urlencode($clientId),
-        CURLOPT_CUSTOMREQUEST => "PATCH",
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_POSTFIELDS => json_encode($data),
-        CURLOPT_HTTPHEADER => [
-            'Authorization: Bearer ' . $apiKey,
-            'Content-Type: application/json',
-            'Accept: application/json'
-        ]
-    ]);
-
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
+    $result = makeSlideApiCall("https://api.slide.tech/v1/client/", $apiKey, 'PATCH', $data);
+    $response = $result['response'];
+    $httpCode = $result['httpCode'];
 
     if ($httpCode !== 200) {
         http_response_code($httpCode);
@@ -3720,20 +3097,9 @@ function handleDeleteClient() {
 
     $clientId = $_GET['client_id'];
 
-    $ch = curl_init();
-    curl_setopt_array($ch, [
-        CURLOPT_URL => "https://api.slide.tech/v1/client/" . urlencode($clientId),
-        CURLOPT_CUSTOMREQUEST => "DELETE",
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_HTTPHEADER => [
-            'Authorization: Bearer ' . $apiKey,
-            'Accept: application/json'
-        ]
-    ]);
-
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
+    $result = makeSlideApiCall("https://api.slide.tech/v1/client/", $apiKey, 'DELETE');
+    $response = $result['response'];
+    $httpCode = $result['httpCode'];
 
     if ($httpCode !== 204) {
         http_response_code($httpCode);
@@ -3747,5 +3113,105 @@ function handleDeleteClient() {
     echo json_encode([
         'success' => true,
         'message' => 'Client deleted successfully'
+    ]);
+}
+
+function handleGetSlowQueries() {
+    $apiKey = getApiKey();
+    if (!$apiKey) {
+        http_response_code(401);
+        echo json_encode([
+            'success' => false,
+            'message' => 'API key not found'
+        ]);
+        return;
+    }
+
+    $logFile = '/tmp/slow_api_queries.log';
+    
+    // Check if log file exists
+    if (!file_exists($logFile)) {
+        echo json_encode([
+            'success' => true,
+            'data' => []
+        ]);
+        return;
+    }
+
+    // Get the last 6 characters of the current API key for filtering
+    $apiKeySuffix = substr($apiKey, -6);
+    
+    // Get date range filters if provided
+    $dateFrom = isset($_GET['date_from']) ? $_GET['date_from'] : null;
+    $dateTo = isset($_GET['date_to']) ? $_GET['date_to'] : null;
+    
+    // Read the log file
+    $lines = file($logFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    if ($lines === false) {
+        http_response_code(500);
+        echo json_encode([
+            'success' => false,
+            'message' => 'Failed to read log file'
+        ]);
+        return;
+    }
+    
+    // Parse and filter log entries
+    $entries = [];
+    $maxEntries = 500; // Limit to prevent performance issues
+    
+    // Process lines in reverse order (newest first)
+    $lines = array_reverse($lines);
+    
+    foreach ($lines as $line) {
+        if (count($entries) >= $maxEntries) {
+            break;
+        }
+        
+        // Parse log line format: [2025-01-15 10:30:45] 250ms GET https://api.slide.tech/v1/device API_KEY: ...abc123
+        if (preg_match('/^\[([\d\-: ]+)\]\s+(\d+)ms\s+(\w+)\s+(.*?)\s+API_KEY:\s+\.\.\.(\w+)$/', $line, $matches)) {
+            $timestamp = $matches[1];
+            $duration = intval($matches[2]);
+            $method = $matches[3];
+            $url = $matches[4];
+            $loggedApiKeySuffix = $matches[5];
+            
+            // Security check: only show queries matching this user's API key
+            if ($loggedApiKeySuffix !== $apiKeySuffix) {
+                continue;
+            }
+            
+            // Date range filtering
+            if ($dateFrom && $timestamp < $dateFrom) {
+                continue;
+            }
+            if ($dateTo && $timestamp > $dateTo . ' 23:59:59') {
+                continue;
+            }
+            
+            // Determine severity level
+            $severity = 'low';
+            if ($duration >= 1000) {
+                $severity = 'high';
+            } else {
+                if ($duration >= 500) {
+                    $severity = 'medium';
+                }
+            }
+            
+            $entries[] = [
+                'timestamp' => $timestamp,
+                'duration' => $duration,
+                'method' => $method,
+                'url' => $url,
+                'severity' => $severity
+            ];
+        }
+    }
+    
+    echo json_encode([
+        'success' => true,
+        'data' => $entries,
+        'total' => count($entries)
     ]);
 } 

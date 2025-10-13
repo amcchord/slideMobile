@@ -195,6 +195,22 @@ if (!$hasKey) {
                 </a>
             </div>
 
+            <!-- Diagnostics Section -->
+            <div class="more-section">
+                <div class="more-section-title">Diagnostics</div>
+                
+                <a href="/mobile/slow-queries.php" class="more-item">
+                    <div class="more-item-icon">
+                        <i class="bi bi-speedometer2"></i>
+                    </div>
+                    <div class="more-item-content">
+                        <div class="more-item-title">Slow Queries</div>
+                        <div class="more-item-description">View API performance metrics</div>
+                    </div>
+                    <i class="bi bi-chevron-right more-item-arrow"></i>
+                </a>
+            </div>
+
             <!-- Settings Section -->
             <div class="more-section">
                 <div class="more-section-title">Settings</div>
