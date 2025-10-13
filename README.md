@@ -14,6 +14,48 @@ A Progressive Web App (PWA) for managing Slide backup operations from mobile dev
 - **Offline Support**: PWA capabilities for offline functionality
 - **Dark Mode UI**: Modern, mobile-optimized dark theme interface
 
+## Screenshots
+
+### API Key Setup
+<img src="docs/screenshots/01-api-key-setup.png" width="300" alt="API Key Setup">
+
+Setup your API key using manual entry or QR code scanning.
+
+### Dashboard
+<img src="docs/screenshots/02-dashboard.png" width="300" alt="Dashboard">
+
+View overview of agents, devices, active restores, and unresolved alerts at a glance.
+
+### Agents
+<img src="docs/screenshots/03-agents.png" width="300" alt="Agents List">
+
+Monitor all backup agents with status, last backup time, and boot verification.
+
+### Devices
+<img src="docs/screenshots/04-devices.png" width="300" alt="Devices List">
+
+Manage backup devices and monitor storage usage.
+
+### Active Restores
+<img src="docs/screenshots/05-restores.png" width="300" alt="Active Restores">
+
+View and manage file restores, image exports, and virtual machine restores.
+
+### Alerts
+<img src="docs/screenshots/06-alerts.png" width="300" alt="Alerts">
+
+Monitor system alerts and resolve issues quickly.
+
+### More Menu
+<img src="docs/screenshots/07-more-menu.png" width="300" alt="More Menu">
+
+Access additional features including accounts, users, clients, backups, networks, audit logs, and diagnostics.
+
+### Snapshots
+<img src="docs/screenshots/08-snapshots.png" width="300" alt="Snapshots">
+
+Browse backup snapshots with thumbnails for visual verification.
+
 ## Requirements
 
 - PHP 7.4 or higher
