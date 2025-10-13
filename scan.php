@@ -109,9 +109,29 @@ if (hasApiKey()) {
                         const code = jsQR(imageData.data, imageData.width, imageData.height);
                         if (code) {
                             scanning = false;
-                            // Handle successful QR code scan
-                            document.cookie = `api_key=${code.data}; path=/; max-age=${365 * 24 * 60 * 60}`; // 1 year
-                            window.location.href = 'index.php';
+                            // Stop the camera stream
+                            stream.getTracks().forEach(track => track.stop());
+                            
+                            // Create and submit form to setKeyCookie.php for validation and encryption
+                            const form = document.createElement('form');
+                            form.method = 'POST';
+                            form.action = 'setKeyCookie.php';
+                            
+                            const input = document.createElement('input');
+                            input.type = 'hidden';
+                            input.name = 'api_key';
+                            input.value = code.data;
+                            
+                            form.appendChild(input);
+                            document.body.appendChild(form);
+                            
+                            // Show loading state
+                            errorMessage.textContent = 'Validating API key...';
+                            errorMessage.classList.remove('alert-danger');
+                            errorMessage.classList.add('alert-info');
+                            errorMessage.classList.remove('d-none');
+                            
+                            form.submit();
                         }
                     }
                     requestAnimationFrame(scan);
