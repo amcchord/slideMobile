@@ -231,6 +231,19 @@ if (!$hasKey) {
             <div class="more-section">
                 <div class="more-section-title">Settings</div>
                 
+                <div class="more-item" id="themeToggleItem" style="cursor: pointer;">
+                    <div class="more-item-icon">
+                        <i class="bi bi-moon-stars" id="themeIcon"></i>
+                    </div>
+                    <div class="more-item-content">
+                        <div class="more-item-title">Appearance</div>
+                        <div class="more-item-description" id="themeDescription">Dark mode</div>
+                    </div>
+                    <div class="form-check form-switch" style="margin: 0;">
+                        <input class="form-check-input" type="checkbox" role="switch" id="themeSwitch" style="cursor: pointer; width: 3rem; height: 1.5rem;">
+                    </div>
+                </div>
+                
                 <a href="/mobile/key-management.php" class="more-item">
                     <div class="more-item-icon">
                         <i class="bi bi-key"></i>
@@ -250,6 +263,54 @@ if (!$hasKey) {
 
     <script src="js/bootstrap.bundle.min.js"></script>
     <script src="js/app.js"></script>
+    
+    <script>
+        // Theme toggle functionality
+        (function() {
+            const themeSwitch = document.getElementById('themeSwitch');
+            const themeIcon = document.getElementById('themeIcon');
+            const themeDescription = document.getElementById('themeDescription');
+            const themeToggleItem = document.getElementById('themeToggleItem');
+            
+            // Update UI based on current theme
+            function updateThemeUI(theme) {
+                if (theme === 'light') {
+                    themeSwitch.checked = true;
+                    themeIcon.className = 'bi bi-sun-fill';
+                    themeDescription.textContent = 'Light mode';
+                } else {
+                    themeSwitch.checked = false;
+                    themeIcon.className = 'bi bi-moon-stars';
+                    themeDescription.textContent = 'Dark mode';
+                }
+            }
+            
+            // Initialize UI with current theme
+            updateThemeUI(window.themeManager.getCurrent());
+            
+            // Handle toggle switch changes
+            themeSwitch.addEventListener('change', function() {
+                const newTheme = window.themeManager.toggle();
+                updateThemeUI(newTheme);
+            });
+            
+            // Handle clicking on the entire item (not just the switch)
+            themeToggleItem.addEventListener('click', function(e) {
+                // Don't double-toggle if clicking directly on the switch
+                if (e.target === themeSwitch) {
+                    return;
+                }
+                themeSwitch.checked = !themeSwitch.checked;
+                const newTheme = window.themeManager.toggle();
+                updateThemeUI(newTheme);
+            });
+            
+            // Listen for theme changes from other sources
+            window.addEventListener('themeChanged', function(e) {
+                updateThemeUI(e.detail.theme);
+            });
+        })();
+    </script>
 </body>
 </html>
 

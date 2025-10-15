@@ -572,4 +572,313 @@ h1, h2, h3, h4, h5, h6 {
     background-color: rgba(255, 255, 255, 0.1);
     border-color: #5fa3ff;
     color: #ffffff;
+}
+
+/* ============================================
+   LIGHT MODE STYLES
+   Nuanced, professional color scheme
+   ============================================ */
+
+[data-bs-theme="light"] body {
+    background-color: #f5f7fa;
+    color: #1f2937;
+}
+
+/* Headers and Navigation - Light Mode */
+[data-bs-theme="light"] .navbar,
+[data-bs-theme="light"] .page-header {
+    background-color: #ffffff !important;
+    border-bottom-color: #e5e7eb !important;
+}
+
+[data-bs-theme="light"] .navbar-brand,
+[data-bs-theme="light"] .page-title {
+    color: #1f2937 !important;
+}
+
+[data-bs-theme="light"] .navbar.fixed-bottom {
+    background-color: #ffffff !important;
+    border-top-color: #e5e7eb !important;
+}
+
+/* Navigation Links - Light Mode */
+[data-bs-theme="light"] .nav-link {
+    color: #6b7280;
+}
+
+[data-bs-theme="light"] .nav-link:hover {
+    color: #3b82f6;
+}
+
+[data-bs-theme="light"] .nav-link.active {
+    color: #3b82f6;
+}
+
+/* Cards - Light Mode */
+[data-bs-theme="light"] .card {
+    background-color: #ffffff;
+    border-color: #e5e7eb;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+[data-bs-theme="light"] .card:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+}
+
+[data-bs-theme="light"] .card.bg-dark {
+    background-color: #ffffff !important;
+    border-color: #e5e7eb !important;
+}
+
+[data-bs-theme="light"] .card-title {
+    color: #1f2937;
+}
+
+[data-bs-theme="light"] .card-text {
+    color: #6b7280;
+}
+
+/* Typography - Light Mode */
+[data-bs-theme="light"] h1,
+[data-bs-theme="light"] h2,
+[data-bs-theme="light"] h3,
+[data-bs-theme="light"] h4,
+[data-bs-theme="light"] h5,
+[data-bs-theme="light"] h6 {
+    color: #1f2937;
+}
+
+[data-bs-theme="light"] .text-muted {
+    color: #9ca3af !important;
+}
+
+[data-bs-theme="light"] small {
+    color: #6b7280;
+}
+
+/* More Page Items - Light Mode */
+[data-bs-theme="light"] .more-item {
+    background-color: #ffffff;
+    border-color: #e5e7eb;
+}
+
+[data-bs-theme="light"] .more-item:hover {
+    background-color: #f3f4f6;
+    border-color: #d1d5db;
+}
+
+[data-bs-theme="light"] .more-item-icon {
+    background-color: rgba(59, 130, 246, 0.1);
+    color: #3b82f6;
+}
+
+[data-bs-theme="light"] .more-item-title {
+    color: #1f2937;
+}
+
+[data-bs-theme="light"] .more-item-description {
+    color: #6b7280;
+}
+
+[data-bs-theme="light"] .more-item-arrow {
+    color: #9ca3af;
+}
+
+[data-bs-theme="light"] .more-section-title {
+    color: #6b7280;
+}
+
+/* Device/Agent List Items - Light Mode */
+[data-bs-theme="light"] .device-item .device-name,
+[data-bs-theme="light"] .agent-item .agent-name {
+    color: #1f2937;
+}
+
+[data-bs-theme="light"] .device-item .device-agent,
+[data-bs-theme="light"] .agent-item .agent-ip {
+    color: #6b7280;
+}
+
+[data-bs-theme="light"] .snapshot-item .snapshot-name,
+[data-bs-theme="light"] .restore-item .restore-name,
+[data-bs-theme="light"] .network-item .network-name {
+    color: #1f2937;
+}
+
+[data-bs-theme="light"] .snapshot-item .snapshot-device,
+[data-bs-theme="light"] .restore-item .restore-details,
+[data-bs-theme="light"] .network-item .network-details {
+    color: #6b7280;
+}
+
+/* PWA Install Banner - Light Mode */
+[data-bs-theme="light"] #pwaInstallBanner {
+    background-color: #ffffff;
+    border-top-color: #e5e7eb;
+    color: #1f2937;
+}
+
+/* Info Cards - Light Mode */
+[data-bs-theme="light"] .info-card {
+    background-color: #ffffff;
+    border-color: #e5e7eb;
+}
+
+[data-bs-theme="light"] .info-card:hover {
+    background-color: #f9fafb;
+    border-color: #d1d5db;
+}
+
+[data-bs-theme="light"] .info-card .card-label {
+    color: #6b7280;
+}
+
+[data-bs-theme="light"] .info-card .card-value {
+    color: #1f2937;
+}
+
+/* Forms - Light Mode */
+[data-bs-theme="light"] .form-control {
+    background-color: #ffffff;
+    border-color: #d1d5db;
+    color: #1f2937;
+}
+
+[data-bs-theme="light"] .form-control:focus {
+    background-color: #ffffff;
+    border-color: #3b82f6;
+    color: #1f2937;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+[data-bs-theme="light"] .form-select {
+    background-color: #ffffff;
+    border-color: #d1d5db;
+    color: #1f2937;
+}
+
+[data-bs-theme="light"] .form-select:focus {
+    background-color: #ffffff;
+    border-color: #3b82f6;
+    color: #1f2937;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+[data-bs-theme="light"] .form-select option {
+    background-color: #ffffff;
+    color: #1f2937;
+}
+
+[data-bs-theme="light"] .form-label {
+    color: #1f2937;
+}
+
+/* Filter Bar - Light Mode */
+[data-bs-theme="light"] .filter-bar {
+    background-color: #f9fafb;
+    border-bottom-color: #e5e7eb;
+}
+
+[data-bs-theme="light"] .filter-bar .form-select {
+    background-color: #ffffff;
+    border-color: #d1d5db;
+    color: #1f2937;
+}
+
+/* Client Badge - Light Mode */
+[data-bs-theme="light"] .client-badge {
+    background-color: rgba(59, 130, 246, 0.1);
+    color: #3b82f6;
+    border-color: rgba(59, 130, 246, 0.3);
+}
+
+/* Empty State - Light Mode */
+[data-bs-theme="light"] .empty-state {
+    color: #6b7280;
+}
+
+/* Modal - Light Mode */
+[data-bs-theme="light"] .modal-title {
+    color: #1f2937;
+}
+
+[data-bs-theme="light"] .modal-body {
+    color: #1f2937;
+}
+
+/* Status Badges - Light Mode (maintaining visibility) */
+[data-bs-theme="light"] .status-badge.success {
+    background-color: rgba(16, 185, 129, 0.15);
+    color: #047857;
+}
+
+[data-bs-theme="light"] .status-badge.warning {
+    background-color: rgba(245, 158, 11, 0.15);
+    color: #b45309;
+}
+
+[data-bs-theme="light"] .status-badge.danger {
+    background-color: rgba(239, 68, 68, 0.15);
+    color: #dc2626;
+}
+
+[data-bs-theme="light"] .status-badge.info {
+    background-color: rgba(59, 130, 246, 0.15);
+    color: #2563eb;
+}
+
+[data-bs-theme="light"] .status-badge.secondary {
+    background-color: rgba(107, 114, 128, 0.15);
+    color: #4b5563;
+}
+
+/* Role Badges - Light Mode */
+[data-bs-theme="light"] .role-badge.owner {
+    background-color: rgba(139, 92, 246, 0.15);
+    color: #7c3aed;
+}
+
+[data-bs-theme="light"] .role-badge.admin {
+    background-color: rgba(59, 130, 246, 0.15);
+    color: #2563eb;
+}
+
+[data-bs-theme="light"] .role-badge.tech {
+    background-color: rgba(6, 182, 212, 0.15);
+    color: #0891b2;
+}
+
+[data-bs-theme="light"] .role-badge.readonly {
+    background-color: rgba(107, 114, 128, 0.15);
+    color: #4b5563;
+}
+
+/* Buttons - Light Mode */
+[data-bs-theme="light"] .btn-link {
+    color: #3b82f6;
+}
+
+[data-bs-theme="light"] .btn-link:hover {
+    color: #2563eb;
+}
+
+/* Offline Banner - Light Mode */
+[data-bs-theme="light"] .offline-banner {
+    background-color: rgba(251, 191, 36, 0.95);
+}
+
+/* Switch/Toggle - Light Mode */
+[data-bs-theme="light"] .form-check-input {
+    background-color: #d1d5db;
+    border-color: #9ca3af;
+}
+
+[data-bs-theme="light"] .form-check-input:checked {
+    background-color: #3b82f6;
+    border-color: #3b82f6;
+}
+
+[data-bs-theme="light"] .form-check-input:focus {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 } 

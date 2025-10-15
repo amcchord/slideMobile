@@ -5,11 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     
     <!-- PWA Meta Tags -->
-    <meta name="theme-color" content="#212529">
+    <meta name="theme-color" content="#212529" id="theme-color-meta">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Slide">
     <meta name="description" content="Mobile interface for Slide backup management">
+    
+    <!-- Theme Management (load early to prevent flash) -->
+    <script src="/mobile/js/theme.js"></script>
     
     <!-- PWA Icons -->
     <link rel="icon" type="image/png" sizes="192x192" href="/mobile/pwa/icons/icon-192x192.png">
