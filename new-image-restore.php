@@ -48,6 +48,7 @@ if (!hasApiKey()) {
             background-color: rgba(255, 255, 255, 0.1);
         }
     </style>
+<link rel="stylesheet" href="/mobile/css/console.css?v=1">
 </head>
 <body class="d-flex flex-column min-vh-100">
     <!-- Header -->
@@ -403,4 +404,4 @@ if (!hasApiKey()) {
         init();
     </script>
 </body>
-</html> 
+</html>

@@ -307,6 +307,7 @@ if ($httpCode === 200 && $response) {
             padding: 0 1rem;
         }
     </style>
+<link rel="stylesheet" href="/mobile/css/console.css?v=1">
 </head>
 <body class="d-flex flex-column min-vh-100">
     <!-- Header -->
@@ -698,4 +699,4 @@ if ($httpCode === 200 && $response) {
         });
     </script>
 </body>
-</html> 
+</html>

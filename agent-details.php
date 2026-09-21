@@ -77,6 +77,7 @@ if (!hasApiKey()) {
             margin-top: 0.25rem;
         }
     </style>
+<link rel="stylesheet" href="/mobile/css/console.css?v=1">
 </head>
 <body>
     <div class="page-container d-flex flex-column min-vh-100">
@@ -548,4 +549,4 @@ if (!hasApiKey()) {
 
     <script src="js/bootstrap.bundle.min.js"></script>
 </body>
-</html> 
+</html>

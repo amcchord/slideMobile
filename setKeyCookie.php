@@ -1,9 +1,10 @@
 <?php
 error_reporting(E_ALL);
-ini_set('display_errors', 1);
+ini_set('display_errors', 0);
 
 try {
-    require_once 'include/encryption.php';
+    $sharedEncryption = dirname(__DIR__) . '/include/encryption.php';
+    require_once is_file($sharedEncryption) ? $sharedEncryption : __DIR__ . '/include/encryption.php';
 
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (isset($_POST['delete_key'])) {
@@ -23,6 +24,8 @@ try {
             
             curl_setopt($ch, CURLOPT_URL, "https://api.slide.tech/v1/device");
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 20);
             curl_setopt($ch, CURLOPT_HTTPHEADER, [
                 'Authorization: Bearer ' . $apiKey,
                 'Accept: application/json'
@@ -80,4 +83,4 @@ try {
     // Redirect with error
     header('Location: manual-key-entry.php?error=system_error&message=' . urlencode($e->getMessage()));
     exit;
-} 
+}
