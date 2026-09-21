@@ -33,6 +33,7 @@ $detailed_message = isset($_GET['message']) ? $_GET['message'] : null;
             padding-bottom: calc(70px + env(safe-area-inset-bottom));
         }
     </style>
+<link rel="stylesheet" href="/mobile/css/console.css?v=1">
 </head>
 <body class="d-flex flex-column min-vh-100">
     <!-- Header -->
@@ -97,4 +98,4 @@ $detailed_message = isset($_GET['message']) ? $_GET['message'] : null;
     <script src="js/bootstrap.bundle.min.js"></script>
     <script src="js/app.js"></script>
 </body>
-</html> 
+</html>

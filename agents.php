@@ -84,6 +84,7 @@ if (!hasApiKey()) {
             font-weight: 500;
         }
     </style>
+<link rel="stylesheet" href="/mobile/css/console.css?v=1">
 </head>
 <body class="d-flex flex-column min-vh-100">
     <!-- Header -->
@@ -108,6 +109,7 @@ if (!hasApiKey()) {
         </div>
     </div>
 
+    <p id="agent-load-status" role="status" class="px-4 pt-3 text-muted">Loading agents…</p>
     <!-- Main Content -->
     <main class="flex-grow-1">
         <div class="agent-list" id="agentList">
@@ -500,7 +502,7 @@ if (!hasApiKey()) {
             
             try {
                 const clientFilter = document.getElementById('clientFilter').value;
-                let url = '/mobile/mobileSlideApi.php?action=getAgents';
+                let url = '/mobile/mobileSlideApi.php?action=getAgents&include_snapshot=1';
                 if (clientFilter) {
                     url += `&client_id=${encodeURIComponent(clientFilter)}`;
                 }
@@ -515,34 +517,14 @@ if (!hasApiKey()) {
                 // Store all agents
                 allAgents = data.data;
                 
-                // Fetch last snapshot for each agent
-                const snapshotPromises = allAgents.map(agent => 
-                    fetch(`/mobile/mobileSlideApi.php?action=getSnapshots&agent_id=${agent.agent_id}&limit=1`)
-                        .then(r => r.json())
-                        .then(d => ({
-                            agent_id: agent.agent_id,
-                            snapshot: d.success && d.data && d.data.length > 0 ? d.data[0] : null
-                        }))
-                        .catch(() => ({ agent_id: agent.agent_id, snapshot: null }))
-                );
-
-                const snapshotResults = await Promise.all(snapshotPromises);
-                
-                // Attach snapshot info to agents
-                snapshotResults.forEach(result => {
-                    const agent = allAgents.find(a => a.agent_id === result.agent_id);
-                    if (agent) {
-                        agent.lastSnapshot = result.snapshot;
-                    }
-                });
-                
                 // Update device filter with all known devices
                 updateDeviceFilter(allAgents);
                 
                 // Display filtered agents
                 displayAgents(allAgents);
+                document.getElementById('agent-load-status').textContent = `${allAgents.length} agents · Updated ${new Date().toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})} · refreshes every minute`;
             } catch (error) {
-                console.error('Error loading agents:', error);
+                document.getElementById('agent-load-status').textContent = error.message || 'Unable to refresh agents';
             } finally {
                 isLoading = false;
                 document.querySelector('.loading-spinner').style.display = 'none';
@@ -591,7 +573,7 @@ if (!hasApiKey()) {
                 clearInterval(refreshInterval);
             }
             // Set new interval
-            refreshInterval = setInterval(loadAgents, 5000);
+            refreshInterval = setInterval(() => { if (navigator.onLine) loadAgents(); }, 60000);
         }
 
         // Stop refresh when page is hidden
@@ -601,6 +583,7 @@ if (!hasApiKey()) {
                     clearInterval(refreshInterval);
                 }
             } else {
+                loadAgents();
                 startRefresh();
             }
         });
@@ -632,4 +615,4 @@ if (!hasApiKey()) {
 
     <script src="js/bootstrap.bundle.min.js"></script>
 </body>
-</html> 
+</html>

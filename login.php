@@ -61,6 +61,7 @@ if (isset($_SERVER['HTTP_REFERER'])) {
             margin-bottom: 1rem;
         }
     </style>
+<link rel="stylesheet" href="/mobile/css/console.css?v=1">
 </head>
 <body>
     <div class="container">
@@ -79,4 +80,4 @@ if (isset($_SERVER['HTTP_REFERER'])) {
         </div>
     </div>
 </body>
-</html> 
+</html>

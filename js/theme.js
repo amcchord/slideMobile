@@ -3,63 +3,76 @@
  * Handles light/dark theme switching with localStorage persistence
  */
 
-(function() {
-    'use strict';
+(function () {
+  "use strict";
 
-    // Get saved theme preference or default to 'dark'
-    function getSavedTheme() {
-        return localStorage.getItem('theme') || 'dark';
+  // Get saved theme preference or default to 'dark'
+  function getSavedTheme() {
+    try {
+      return (
+        localStorage.getItem("recipes-theme") ||
+        localStorage.getItem("theme") ||
+        "light"
+      );
+    } catch {
+      return "light";
+    }
+  }
+
+  // Apply theme to the document
+  function applyTheme(theme) {
+    const html = document.documentElement;
+    html.setAttribute("data-bs-theme", theme);
+    html.setAttribute("data-theme", theme);
+
+    // Update PWA theme-color meta tag
+    const themeColorMeta = document.querySelector('meta[name="theme-color"]');
+    if (themeColorMeta) {
+      if (theme === "light") {
+        themeColorMeta.setAttribute("content", "#f5f7fb");
+      } else {
+        themeColorMeta.setAttribute("content", "#111522");
+      }
     }
 
-    // Apply theme to the document
-    function applyTheme(theme) {
-        const html = document.documentElement;
-        html.setAttribute('data-bs-theme', theme);
-        
-        // Update PWA theme-color meta tag
-        const themeColorMeta = document.querySelector('meta[name="theme-color"]');
-        if (themeColorMeta) {
-            if (theme === 'light') {
-                themeColorMeta.setAttribute('content', '#f5f7fa');
-            } else {
-                themeColorMeta.setAttribute('content', '#212529');
-            }
-        }
-        
-        // Save preference
-        localStorage.setItem('theme', theme);
-        
-        // Dispatch custom event for other components to react
-        window.dispatchEvent(new CustomEvent('themeChanged', { detail: { theme } }));
-    }
+    // Save preference
+    try {
+      localStorage.setItem("recipes-theme", theme);
+      localStorage.setItem("theme", theme);
+    } catch {}
 
-    // Toggle between light and dark themes
-    function toggleTheme() {
-        const currentTheme = getSavedTheme();
-        const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-        applyTheme(newTheme);
-        return newTheme;
-    }
+    // Dispatch custom event for other components to react
+    window.dispatchEvent(
+      new CustomEvent("themeChanged", { detail: { theme } }),
+    );
+  }
 
-    // Get current theme
-    function getCurrentTheme() {
-        return getSavedTheme();
-    }
+  // Toggle between light and dark themes
+  function toggleTheme() {
+    const currentTheme = getSavedTheme();
+    const newTheme = currentTheme === "dark" ? "light" : "dark";
+    applyTheme(newTheme);
+    return newTheme;
+  }
 
-    // Initialize theme on page load
-    function initTheme() {
-        const savedTheme = getSavedTheme();
-        applyTheme(savedTheme);
-    }
+  // Get current theme
+  function getCurrentTheme() {
+    return getSavedTheme();
+  }
 
-    // Run initialization immediately
-    initTheme();
+  // Initialize theme on page load
+  function initTheme() {
+    const savedTheme = getSavedTheme();
+    applyTheme(savedTheme);
+  }
 
-    // Expose API globally
-    window.themeManager = {
-        toggle: toggleTheme,
-        apply: applyTheme,
-        getCurrent: getCurrentTheme
-    };
+  // Run initialization immediately
+  initTheme();
+
+  // Expose API globally
+  window.themeManager = {
+    toggle: toggleTheme,
+    apply: applyTheme,
+    getCurrent: getCurrentTheme,
+  };
 })();
-

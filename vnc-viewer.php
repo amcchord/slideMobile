@@ -299,6 +299,7 @@ if (!hasApiKey()) {
         // Initial connection
         connect();
     </script>
+<link rel="stylesheet" href="/mobile/css/console.css?v=1">
 </head>
 <body>
     <!-- Header -->
@@ -345,4 +346,4 @@ if (!hasApiKey()) {
     <!-- VNC Screen -->
     <div id="screen"></div>
 </body>
-</html> 
+</html>

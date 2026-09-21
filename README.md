@@ -235,3 +235,8 @@ For issues, questions, or feature requests, please open an issue on the GitHub r
 - Uses noVNC for remote desktop functionality
 - Designed with mobile-first principles
 
+
+
+## September 2026 modernization
+
+See [the modernization notes](docs/modernization.md) for scope, API behavior, validation, and deployment considerations.

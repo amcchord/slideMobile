@@ -28,6 +28,7 @@ $hasKey = hasApiKey();
             display: block;
         }
     </style>
+<link rel="stylesheet" href="/mobile/css/console.css?v=1">
 </head>
 <body class="d-flex flex-column min-vh-100">
     <!-- Header -->
@@ -35,7 +36,7 @@ $hasKey = hasApiKey();
         <div class="container-fluid">
             <span class="navbar-brand mb-0 h1">Slide Mobile</span>
             <?php if (hasApiKey()): ?>
-                <a href="key-management.php" class="btn btn-link text-white">
+                <a href="key-management.php" class="btn btn-link text-white" aria-label="Manage API key">
                     <i class="bi bi-key"></i>
                 </a>
             <?php endif; ?>
@@ -44,7 +45,7 @@ $hasKey = hasApiKey();
 
     <!-- Main Content -->
     <main class="flex-grow-1 d-flex flex-column align-items-center pt-4">
-        <h1 class="display-4 mb-5">Welcome</h1>
+        <div class="mobile-page-heading"><a href="/index.php" class="workspace-back">← Recipes workspace</a><h1>Fleet overview</h1><p>Your agents, devices, and recovery activity in one place.</p><p id="stats-status" role="status" style="font-size:12px;margin-top:10px">Loading account data…</p></div>
         
         <?php if (!$hasKey): ?>
         <div class="setup-options text-center">
@@ -195,7 +196,7 @@ $hasKey = hasApiKey();
         let updateInterval;
 
         async function updateStats(isBackgroundUpdate = false) {
-            if (isLoading) return;
+            if (isLoading || document.hidden || !navigator.onLine) return;
             isLoading = true;
 
             try {
@@ -219,6 +220,9 @@ $hasKey = hasApiKey();
                 );
                 const alertsData = await alertsResponse.json();
 
+                const results = [agentsData, devicesData, fileRestores, imageExports, virtualMachines, alertsData];
+                if (results.some(result => !result.success)) throw new Error('Some account data is unavailable. Check your key and retry.');
+                document.getElementById('stats-status').textContent = 'Updated ' + new Date().toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}) + ' · refreshes every minute';
                 // Update counts
                 if (agentsData.success) {
                     document.getElementById('agentCount').textContent = agentsData.data.length;
@@ -242,7 +246,7 @@ $hasKey = hasApiKey();
                 }
 
             } catch (error) {
-                console.error('Error updating stats:', error);
+                document.getElementById('stats-status').textContent = error.message || 'Unable to load account data.';
                 if (!isBackgroundUpdate) {
                     document.querySelectorAll('#agentCount, #deviceCount, #restoreCount, #alertCount').forEach(el => {
                         el.textContent = '-';
@@ -261,8 +265,11 @@ $hasKey = hasApiKey();
             // Set up background updates
             updateInterval = setInterval(() => {
                 updateStats(true);
-            }, 5000);
+            }, 60000);
         }
+
+        document.addEventListener('visibilitychange', () => { if (!document.hidden) updateStats(true); });
+        window.addEventListener('online', () => updateStats(true));
 
         // Start updates when page loads
         startUpdates();

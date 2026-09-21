@@ -85,6 +85,7 @@ if (!hasApiKey()) {
             opacity: 0.5;
         }
     </style>
+<link rel="stylesheet" href="/mobile/css/console.css?v=1">
 </head>
 <body class="d-flex flex-column min-vh-100">
     <!-- Header -->

@@ -1,5 +1,7 @@
 <?php
 require_once 'include/getApiKey.php';
+require_once __DIR__ . '/include/SlideClient.php';
+header('Cache-Control: no-store');
 
 /**
  * Log slow API queries to /tmp/slow_api_queries.log
@@ -39,6 +41,23 @@ function logSlowApiQuery($url, $durationMs, $apiKey, $method = 'GET') {
  * @return array ['response' => string, 'httpCode' => int]
  */
 function makeSlideApiCall($url, $apiKey, $method = 'GET', $data = null, $additionalHeaders = []) {
+    if ($method === 'GET') {
+        try {
+            if (!str_starts_with($url, 'https://api.slide.tech/v1/')) throw new RuntimeException('Invalid Slide endpoint.', 400);
+            $parts = parse_url($url); parse_str($parts['query'] ?? '', $query);
+            $path = substr($parts['path'], 4);
+            $client = new SlideClient($apiKey);
+            // Inventory views require complete collections; explicit pagination remains paged.
+            $complete = ['agent','device','client','alert','network','restore/file','restore/image','restore/virt'];
+            $result = in_array($path, $complete, true) && !array_key_exists('offset', $query)
+                ? ['data'=>$client->all($path, $query), 'pagination'=>(object)[]]
+                : $client->get($path, $query);
+            return ['response'=>json_encode($result), 'httpCode'=>200];
+        } catch (RuntimeException $e) {
+            return ['response'=>json_encode(['message'=>$e->getMessage()]), 'httpCode'=>in_array($e->getCode(), [401,403,429]) ? $e->getCode() : 502];
+        }
+    }
+
     $ch = curl_init();
     
     $headers = array_merge([
@@ -48,6 +67,8 @@ function makeSlideApiCall($url, $apiKey, $method = 'GET', $data = null, $additio
     
     curl_setopt($ch, CURLOPT_URL, $url);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 30);
     
     if ($method === 'POST') {
         curl_setopt($ch, CURLOPT_POST, true);
@@ -379,7 +400,9 @@ function handleGetAgents() {
     }
 
     // Fetch agents
-    $result = makeSlideApiCall("https://api.slide.tech/v1/agent?limit=50", $apiKey);
+    $query = ["limit"=>50];
+    if (!empty($_GET["client_id"])) $query["client_id"] = $_GET["client_id"];
+    $result = makeSlideApiCall("https://api.slide.tech/v1/agent?" . http_build_query($query), $apiKey);
     $response = $result['response'];
     $httpCode = $result['httpCode'];
     
@@ -404,7 +427,7 @@ function handleGetAgents() {
 
     // Collect all device IDs
     $deviceIds = array_unique(array_map(function($agent) {
-        return $agent['device_id'];
+        return $agent['device_id'] ?? '';
     }, $agentsData['data']));
 
     // Fetch devices
@@ -489,6 +512,16 @@ function handleGetAgents() {
         }
     }
 
+    unset($agent);
+    if (($_GET['include_snapshot'] ?? '') === '1') {
+        require_once __DIR__ . '/include/AgentSnapshots.php';
+        try { $agentsData['data'] = mobileAgentSnapshots(new SlideClient($apiKey), $agentsData['data']); }
+        catch (Throwable $error) {
+            http_response_code(502);
+            echo json_encode(['success'=>false,'message'=>'Unable to load recovery points. Please retry.']);
+            return;
+        }
+    }
     echo json_encode([
         'success' => true,
         'data' => $agentsData['data']
@@ -1287,6 +1320,8 @@ function handleCreateFileRestore() {
 
 function handleCreateVirtualMachine() {
     require_once 'include/getApiKey.php';
+require_once __DIR__ . '/include/SlideClient.php';
+header('Cache-Control: no-store');
     $apiKey = getApiKey();
     if (!$apiKey) {
         http_response_code(401);
@@ -3214,4 +3249,4 @@ function handleGetSlowQueries() {
         'data' => $entries,
         'total' => count($entries)
     ]);
-} 
+}

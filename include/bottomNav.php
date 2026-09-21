@@ -36,40 +36,9 @@
     navLinks.forEach(link => {
         const page = link.getAttribute('data-page');
         if (page === currentPage) {
-            link.classList.add('active');
+            link.classList.add('active'); link.setAttribute('aria-current','page');
         }
     });
-    
-    // Handle navigation clicks
-    navLinks.forEach(link => {
-        link.addEventListener('click', function(e) {
-            e.preventDefault();
-            
-            // Don't navigate if already on the same page
-            if (this.classList.contains('active')) {
-                return;
-            }
-            
-            const targetUrl = this.getAttribute('href');
-            const icon = this.querySelector('i');
-            const originalClass = icon.className;
-            
-            // Change icon to spinner
-            icon.className = 'bi bi-arrow-repeat spin';
-            
-            // Add slide-out class to main content
-            const main = document.querySelector('main');
-            if (main) {
-                main.style.animation = 'slideOutToLeft 0.3s ease-out forwards';
-            }
-            
-            // Navigate after animation
-            setTimeout(() => {
-                window.location.href = targetUrl;
-            }, 200);
-        });
-    });
-    
     // Add slide animations for navigation
     const style = document.createElement('style');
     style.textContent = `
@@ -98,4 +67,4 @@
     `;
     document.head.appendChild(style);
 })();
-</script> 
+</script>
